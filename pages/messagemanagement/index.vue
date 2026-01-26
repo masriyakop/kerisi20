@@ -1,6 +1,6 @@
 <script setup>
     definePageMeta({
-      title: "Message Code",
+      title: "Message Management",
       middleware: ["auth"],
       requiresAuth: true,
     });
@@ -12,12 +12,12 @@
         <rs-card>
           <template #header>
             <div>
-              Message Code
+              Message Management
             </div>
           </template>
           <template #body>
             <div>
-              Content for Message Code
+              Content for Message Management
             </div>
           </template>
         </rs-card>

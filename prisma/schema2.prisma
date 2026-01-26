@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client2"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL2")
+}
+
+// Example models for second database
+// You can modify these or add your own models
+
+model User {
+  id        Int       @id @default(autoincrement())
+  username  String    @unique @db.VarChar(255)
+  email     String    @unique @db.VarChar(255)
+  fullName  String?   @db.VarChar(255)
+  phone     String?   @db.VarChar(50)
+  status    String?   @default("active") @db.VarChar(20)
+  createdAt DateTime? @default(now()) @db.DateTime(0)
+  updatedAt DateTime? @updatedAt @db.DateTime(0)
+  createdBy String?   @db.VarChar(250)
+  updatedBy String?   @db.VarChar(250)
+  
+  posts     Post[]
+  comments  Comment[]
+}
+
+model Post {
+  id        Int       @id @default(autoincrement())
+  title     String    @db.VarChar(500)
+  content   String?   @db.Text
+  status    String?   @default("draft") @db.VarChar(20)
+  userId    Int
+  createdAt DateTime? @default(now()) @db.DateTime(0)
+  updatedAt DateTime? @updatedAt @db.DateTime(0)
+  createdBy String?   @db.VarChar(250)
+  updatedBy String?   @db.VarChar(250)
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  comments  Comment[]
+  
+  @@index([userId])
+  @@index([status])
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  content   String    @db.Text
+  postId    Int
+  userId    Int
+  status    String?   @default("active") @db.VarChar(20)
+  createdAt DateTime? @default(now()) @db.DateTime(0)
+  updatedAt DateTime? @updatedAt @db.DateTime(0)
+  createdBy String?   @db.VarChar(250)
+  updatedBy String?   @db.VarChar(250)
+  
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  
+  @@index([postId])
+  @@index([userId])
+}

@@ -3092,25 +3092,3 @@ model vendor_jobscope {
   @@unique([vcs_vendor_code, jbs_jobscope_code, jbc_category], map: "vend_jbs_uq")
   @@index([vcs_vendor_code], map: "fk_reference_31")
 }
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model adm_message_log {
-  ml_message_log_id    BigInt    @id @default(autoincrement())
-  mm_mesg_code         String?   @db.VarChar(50)
-  ml_user_id           String?   @db.VarChar(50)
-  ml_user_role         String?   @db.VarChar(50)
-  ml_page_name         String?   @db.VarChar(200)
-  ml_user_action       String?   @db.VarChar(50)
-  ml_root_cause        String?   @db.VarChar(100)
-  ml_resolution_action String?   @db.VarChar(1000)
-  ml_preventive_action String?   @db.VarChar(1000)
-  ml_resolvedby        String?   @db.VarChar(255)
-  ml_status            String?   @default("OPEN") @db.VarChar(50)
-  ml_resolveddate      DateTime? @db.DateTime(0)
-  ml_module_name       String?   @db.VarChar(100)
-  ml_page_breadcrumb   String?   @db.VarChar(250)
-  createddate          DateTime? @default(now()) @db.DateTime(0)
-  createdby            String?   @db.VarChar(255)
-  updateddate          DateTime? @default(now()) @db.DateTime(0)
-  updatedby            String?   @db.VarChar(255)
-}

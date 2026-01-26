@@ -1025,31 +1025,6 @@ export default [
             "title": "setup",
             "path": "/communicationmanagement/setup",
             "icon": "",
-            "child": [
-              {
-                "title": "Message Type",
-                "path": "/communication/setup/messagetype",
-                "icon": "",
-                "child": []
-              },
-              {
-                "title": "Message Category",
-                "path": "/communicationmanagement/setup/messagecategory",
-                "icon": "",
-                "child": []
-              },
-              {
-                "title": "Message Code",
-                "path": "/communicationmanagement/setup/messagecode",
-                "icon": "",
-                "child": []
-              }
-            ]
-          },
-          {
-            "title": "Message Log",
-            "path": "/communicationmanagement/messagelog",
-            "icon": "",
             "child": []
           }
         ],
@@ -1077,15 +1052,43 @@ export default [
         "meta": {}
       },
       {
-        "title": "Panduan Pembangun",
-        "path": "/devtool/guide",
-        "icon": "material-symbols:menu-book-rounded",
-        "child": []
+        "title": "Message Management",
+        "path": "/messagemanagement",
+        "icon": "material-symbols:android-messages-outline",
+        "child": [
+          {
+            "title": "Setup",
+            "path": "/messagemanagement/setup",
+            "icon": "",
+            "child": [
+              {
+                "title": "Message Category",
+                "path": "/messagemanagement/setup/messagecategory",
+                "icon": "",
+                "child": []
+              },
+              {
+                "title": "Message Type",
+                "path": "/messagemanagement/setup/messagetype",
+                "icon": "",
+                "child": []
+              }
+            ]
+          }
+        ],
+        "meta": {}
       },
       {
         "title": "Global Setting",
         "path": "/globalsetting",
-        "icon": "",
+        "icon": "material-symbols:globe-asia-sharp",
+        "child": [],
+        "meta": {}
+      },
+      {
+        "title": "Panduan Pembangun",
+        "path": "/devtool/guide",
+        "icon": "material-symbols:menu-book-rounded",
         "child": []
       }
     ],

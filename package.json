@@ -32,7 +32,11 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "prisma": "yarn prisma:generate && nuxt dev",
-    "prisma:generate": "npx prisma db pull && npx prisma generate",
+    "prisma:generate": "npx prisma db pull && npx prisma generate && npx prisma generate --schema=prisma/schema2.prisma",
+    "prisma:generate:main": "npx prisma db pull && npx prisma generate",
+    "prisma:generate:second": "npx prisma generate --schema=prisma/schema2.prisma",
+    "prisma:generate:all": "yarn prisma:generate:main && yarn prisma:generate:second",
+    "prisma:pull:second": "npx prisma db pull --schema=prisma/schema2.prisma",
     "docs:html": "node scripts/generate-pdf-html.js",
     "docs:pdf": "node scripts/generate-pdf.js"
   },
