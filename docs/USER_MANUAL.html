@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CORRAD Application Framework - User Manual</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2cm;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: white;
+    }
+    
+    h1 {
+      color: #2c3e50;
+      font-size: 24pt;
+      margin-top: 30px;
+      margin-bottom: 20px;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 10px;
+      page-break-after: avoid;
+    }
+    
+    h2 {
+      color: #34495e;
+      font-size: 18pt;
+      margin-top: 25px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #ecf0f1;
+      padding-bottom: 8px;
+      page-break-after: avoid;
+    }
+    
+    h3 {
+      color: #555;
+      font-size: 14pt;
+      margin-top: 20px;
+      margin-bottom: 12px;
+      page-break-after: avoid;
+    }
+    
+    h4 {
+      color: #666;
+      font-size: 12pt;
+      margin-top: 15px;
+      margin-bottom: 10px;
+    }
+    
+    p {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+    
+    ul, ol {
+      margin-bottom: 15px;
+      padding-left: 30px;
+    }
+    
+    li {
+      margin-bottom: 8px;
+    }
+    
+    code {
+      background-color: #f4f4f4;
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', Consolas, monospace;
+      font-size: 10pt;
+    }
+    
+    pre {
+      background-color: #f4f4f4;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      page-break-inside: avoid;
+      margin: 15px 0;
+      border-left: 4px solid #3498db;
+    }
+    
+    pre code {
+      background-color: transparent;
+      padding: 0;
+      font-size: 10pt;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      page-break-inside: avoid;
+    }
+    
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    
+    th {
+      background-color: #3498db;
+      color: white;
+      font-weight: bold;
+    }
+    
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    
+    blockquote {
+      border-left: 4px solid #3498db;
+      padding-left: 15px;
+      margin: 15px 0;
+      color: #666;
+      font-style: italic;
+    }
+    
+    strong {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    
+    em {
+      font-style: italic;
+    }
+    
+    a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    
+    a:hover {
+      text-decoration: underline;
+    }
+    
+    hr {
+      border: none;
+      border-top: 2px solid #ecf0f1;
+      margin: 30px 0;
+    }
+    
+    .page-break {
+      page-break-before: always;
+    }
+    
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+      }
+      
+      h1, h2, h3 {
+        page-break-after: avoid;
+      }
+      
+      pre, table, blockquote {
+        page-break-inside: avoid;
+      }
+      
+      ul, ol {
+        page-break-inside: avoid;
+      }
+    }
+    
+    .toc {
+      background-color: #f8f9fa;
+      padding: 20px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    
+    .toc ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+    
+    .toc li {
+      margin-bottom: 5px;
+    }
+    
+    .toc a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    
+    .toc a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1>CORRAD Application Framework - User Manual</h1>
+
+<strong>Version 1.0.0</strong>  
+<strong>Last Updated:</strong> 2024
+
+<hr>
+
+<h2>Table of Contents</h2>
+
+<ul><li>[Introduction](#introduction)</li></ul>
+<ul><li>[Getting Started](#getting-started)</li></ul>
+<ul><li>[Authentication](#authentication)</li></ul>
+<ul><li>[Dashboard](#dashboard)</li></ul>
+<ul><li>[Account Code Management](#account-code-management)</li></ul>
+<ul><li>[User Management](#user-management)</li></ul>
+<ul><li>[Development Tools](#development-tools)</li></ul>
+<ul><li>[Troubleshooting](#troubleshooting)</li></ul>
+<ul><li>[Support](#support)</li></ul>
+
+<hr>
+
+<h2>1. Introduction</h2>
+
+<h3>1.1 About CORRAD Application Framework</h3>
+
+<p>CORRAD Application Framework (corradAF) is a comprehensive Nuxt.js-based application framework designed for rapid application development. It provides a complete foundation with essential development tools, authentication system, and modern UI components.</p>
+
+<h3>1.2 Key Features</h3>
+
+<ul><li><strong>Complete Authentication System</strong> - Secure login, registration, password recovery, and logout</li></ul>
+<ul><li><strong>User Management</strong> - Comprehensive user and role management with CRUD operations</li></ul>
+<ul><li><strong>Development Tools Suite</strong> - Built-in tools for rapid development</li></ul>
+<ul><li><strong>Modern UI Components</strong> - Beautiful, responsive interface built with TailwindCSS</li></ul>
+<ul><li><strong>API Management</strong> - Design and test API endpoints</li></ul>
+<ul><li><strong>Content Management</strong> - Dynamic content and template management</li></ul>
+<ul><li><strong>Menu Configuration</strong> - Easy navigation structure management</li></ul>
+<ul><li><strong>Code Playground</strong> - In-browser code testing and prototyping</li></ul>
+<ul><li><strong>ORM Integration</strong> - Database schema management tools</li></ul>
+
+<h3>1.3 System Requirements</h3>
+
+<ul><li><strong>Web Browser:</strong> Chrome, Firefox, Safari, or Edge (latest versions)</li></ul>
+<ul><li><strong>Internet Connection:</strong> Required for accessing the application</li></ul>
+<ul><li><strong>Screen Resolution:</strong> Minimum 1024x768 pixels recommended</li></ul>
+
+<hr>
+
+<h2>2. Getting Started</h2>
+
+<h3>2.1 Accessing the Application</h3>
+
+<ul><li>Open your web browser</li></ul>
+<ul><li>Navigate to the application URL provided by your administrator</li></ul>
+<ul><li>You will be redirected to the login page if not already authenticated</li></ul>
+
+<h3>2.2 First-Time Login</h3>
+
+<ul><li>If you don't have an account, click on the <strong>Register</strong> link</li></ul>
+<ul><li>Fill in the registration form with your details</li></ul>
+<ul><li>Submit the form to create your account</li></ul>
+<ul><li>Log in with your credentials</li></ul>
+
+<h3>2.3 Navigation Overview</h3>
+
+<p>The application features a modern, intuitive interface with:</p>
+
+<ul><li><strong>Top Navigation Bar:</strong> Contains user profile, notifications, and logout</li></ul>
+<ul><li><strong>Sidebar Menu:</strong> Main navigation menu with collapsible sections</li></ul>
+<ul><li><strong>Breadcrumb Navigation:</strong> Shows your current location in the application</li></ul>
+<ul><li><strong>Content Area:</strong> Main workspace where content is displayed</li></ul>
+
+<hr>
+
+<h2>3. Authentication</h2>
+
+<h3>3.1 Logging In</h3>
+
+<ul><li>Navigate to the login page</li></ul>
+<ul><li>Enter your <strong>Username</strong> or <strong>Email</strong></li></ul>
+<ul><li>Enter your <strong>Password</strong></li></ul>
+<ul><li>Click the <strong>Login</strong> button</li></ul>
+<ul><li>Upon successful authentication, you will be redirected to the Dashboard</li></ul>
+
+<h3>3.2 Registration</h3>
+
+<ul><li>Click on the <strong>Register</strong> link from the login page</li></ul>
+<ul><li>Fill in all required fields:</li></ul>
+<p>   - Full Name</p>
+<p>   - Email Address</p>
+<p>   - Username</p>
+<p>   - Password (must meet security requirements)</p>
+<p>   - Confirm Password</p>
+<ul><li>Accept the terms and conditions if applicable</li></ul>
+<ul><li>Click <strong>Register</strong> to create your account</li></ul>
+<ul><li>You will be automatically logged in after successful registration</li></ul>
+
+<h3>3.3 Password Recovery</h3>
+
+<p>If you forget your password:</p>
+
+<ul><li>Click on <strong>Forgot Password</strong> link on the login page</li></ul>
+<ul><li>Enter your registered email address</li></ul>
+<ul><li>Click <strong>Send Reset Link</strong></li></ul>
+<ul><li>Check your email for password reset instructions</li></ul>
+<ul><li>Follow the link in the email to reset your password</li></ul>
+<ul><li>Enter your new password and confirm it</li></ul>
+<ul><li>Log in with your new password</li></ul>
+
+<h3>3.4 Logging Out</h3>
+
+<ul><li>Click on your <strong>User Profile</strong> icon in the top navigation bar</li></ul>
+<ul><li>Select <strong>Logout</strong> from the dropdown menu</li></ul>
+<ul><li>You will be logged out and redirected to the login page</li></ul>
+
+<hr>
+
+<h2>4. Dashboard</h2>
+
+<h3>4.1 Overview</h3>
+
+<p>The Dashboard is your main landing page after logging in. It provides:</p>
+
+<ul><li><strong>Quick Statistics:</strong> Overview of key metrics</li></ul>
+<ul><li><strong>Development Tools Access:</strong> Quick links to all available tools</li></ul>
+<ul><li><strong>Framework Information:</strong> Details about the application framework</li></ul>
+<ul><li><strong>Getting Started Guide:</strong> Step-by-step instructions for new users</li></ul>
+
+<h3>4.2 Dashboard Features</h3>
+
+<h4>Quick Stats Cards</h4>
+
+<p>The dashboard displays quick statistics including:</p>
+<ul><li>Number of Development Tools available</li></ul>
+<ul><li>Total Components count</li></ul>
+<ul><li>Authentication System status</li></ul>
+<ul><li>Framework version information</li></ul>
+
+<h4>Development Tools Section</h4>
+
+<p>Access all development tools directly from the dashboard:</p>
+<ul><li>Click on any tool card to navigate to that tool</li></ul>
+<ul><li>Each tool card shows:</li></ul>
+<p>  - Tool name</p>
+<p>  - Brief description</p>
+<p>  - Color-coded icon</p>
+
+<h4>Framework Features</h4>
+
+<p>View all available framework features in an organized list format.</p>
+
+<h4>Getting Started Guide</h4>
+
+<p>For new users, the dashboard includes a step-by-step getting started guide with:</p>
+<ul><li>Installation instructions</li></ul>
+<ul><li>Configuration steps</li></ul>
+<ul><li>Development server setup</li></ul>
+
+<hr>
+
+<h2>5. Account Code Management</h2>
+
+<h3>5.1 Overview</h3>
+
+<p>The Account Code Management module allows you to view, search, and manage account codes in the system.</p>
+
+<h3>5.2 Accessing Account Codes</h3>
+
+<ul><li>Navigate to <strong>Setup</strong> in the sidebar menu</li></ul>
+<ul><li>Click on <strong>Account Code</strong></li></ul>
+<ul><li>The Account Code page will display</li></ul>
+
+<h3>5.3 Filtering Account Codes</h3>
+
+<p>Use the Top Filter section to search and filter account codes:</p>
+
+<h4>Available Filters</h4>
+
+<ul><li><strong>Fund Type:</strong> Filter by fund type (e.g., "E01 - ZAKAT")</li></ul>
+<ul><li><strong>Account Type:</strong> Filter by account type (e.g., "ASET", "LIABILITI")</li></ul>
+<ul><li><strong>Account Class:</strong> Filter by account class (e.g., "ASSET", "LIABILITY")</li></ul>
+<ul><li><strong>Account Code:</strong> Search by specific account code</li></ul>
+
+<h4>Using Filters</h4>
+
+<ul><li>Enter or select values in the filter fields</li></ul>
+<ul><li>Click the <strong>Search</strong> button to apply filters</li></ul>
+<ul><li>The table will update to show matching results</li></ul>
+
+<h3>5.4 Account Code Table</h3>
+
+<p>The table displays the following information:</p>
+
+<ul><li><strong>No:</strong> Sequential number</li></ul>
+<ul><li><strong>Account Code:</strong> The account code identifier (e.g., "A0552102")</li></ul>
+<ul><li><strong>Account Code Description:</strong> Description of the account (highlighted in yellow)</li></ul>
+<ul><li><strong>Account Level:</strong> Hierarchical level of the account</li></ul>
+<ul><li><strong>Account Type:</strong> Type of account (ASET, LIABILITI, etc.)</li></ul>
+<ul><li><strong>Account Class:</strong> Classification of the account</li></ul>
+<ul><li><strong>Fund Type:</strong> Associated fund type</li></ul>
+<ul><li><strong>Statement Item:</strong> Financial statement item code (e.g., "BS" for Balance Sheet)</li></ul>
+<ul><li><strong>Account Status:</strong> Current status (ACTIVE, INACTIVE, etc.)</li></ul>
+
+<h3>5.5 Exporting Data</h3>
+
+<h4>Download CSV</h4>
+
+<ul><li>Apply any desired filters</li></ul>
+<ul><li>Click the <strong>Download CSV</strong> button</li></ul>
+<ul><li>A CSV file will be downloaded with the current filtered data</li></ul>
+
+<h4>Download PDF</h4>
+
+<ul><li>Apply any desired filters</li></ul>
+<ul><li>Click the <strong>Download PDF</strong> button</li></ul>
+<ul><li>A PDF file will be generated and downloaded with the current filtered data</li></ul>
+
+<h3>5.6 Table Features</h3>
+
+<ul><li><strong>Sorting:</strong> Click on column headers to sort data</li></ul>
+<ul><li><strong>Pagination:</strong> Navigate through multiple pages of results (10 items per page)</li></ul>
+<ul><li><strong>Responsive Design:</strong> Table adapts to different screen sizes</li></ul>
+
+<hr>
+
+<h2>6. User Management</h2>
+
+<h3>6.1 Overview</h3>
+
+<p>The User Management module (available to administrators and developers) allows you to manage users and roles in the system.</p>
+
+<h3>6.2 Accessing User Management</h3>
+
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration) in the sidebar menu</li></ul>
+<ul><li>Click on <strong>Urus Pengguna</strong> (User Management)</li></ul>
+<ul><li>Select either:</li></ul>
+<p>   - <strong>Senarai Pengguna</strong> (User List) - Manage users</p>
+<p>   - <strong>Senarai Peranan</strong> (Role List) - Manage roles</p>
+
+<h3>6.3 Managing Users</h3>
+
+<h4>Viewing Users</h4>
+
+<ul><li>Navigate to <strong>Senarai Pengguna</strong> (User List)</li></ul>
+<ul><li>View all registered users in the system</li></ul>
+<ul><li>Use search and filter options to find specific users</li></ul>
+
+<h4>Creating a New User</h4>
+
+<ul><li>Click the <strong>Add User</strong> or <strong>Create User</strong> button</li></ul>
+<ul><li>Fill in the user form:</li></ul>
+<p>   - Full Name</p>
+<p>   - Email Address</p>
+<p>   - Username</p>
+<p>   - Password</p>
+<p>   - Role Assignment</p>
+<p>   - Status (Active/Inactive)</p>
+<ul><li>Click <strong>Save</strong> to create the user</li></ul>
+
+<h4>Editing a User</h4>
+
+<ul><li>Find the user in the list</li></ul>
+<ul><li>Click the <strong>Edit</strong> button or icon</li></ul>
+<ul><li>Modify the user information</li></ul>
+<ul><li>Click <strong>Save</strong> to update</li></ul>
+
+<h4>Deleting a User</h4>
+
+<ul><li>Find the user in the list</li></ul>
+<ul><li>Click the <strong>Delete</strong> button or icon</li></ul>
+<ul><li>Confirm the deletion</li></ul>
+<ul><li>The user will be removed from the system</li></ul>
+
+<h3>6.4 Managing Roles</h3>
+
+<h4>Viewing Roles</h4>
+
+<ul><li>Navigate to <strong>Senarai Peranan</strong> (Role List)</li></ul>
+<ul><li>View all available roles in the system</li></ul>
+
+<h4>Creating a New Role</h4>
+
+<ul><li>Click the <strong>Add Role</strong> or <strong>Create Role</strong> button</li></ul>
+<ul><li>Enter role details:</li></ul>
+<p>   - Role Name</p>
+<p>   - Description</p>
+<p>   - Permissions</p>
+<ul><li>Click <strong>Save</strong> to create the role</li></ul>
+
+<h4>Editing a Role</h4>
+
+<ul><li>Find the role in the list</li></ul>
+<ul><li>Click the <strong>Edit</strong> button</li></ul>
+<ul><li>Modify role information and permissions</li></ul>
+<ul><li>Click <strong>Save</strong> to update</li></ul>
+
+<h4>Deleting a Role</h4>
+
+<ul><li>Find the role in the list</li></ul>
+<ul><li>Click the <strong>Delete</strong> button</li></ul>
+<ul><li>Confirm the deletion</li></ul>
+<ul><li>The role will be removed (ensure no users are assigned to this role)</li></ul>
+
+<hr>
+
+<h2>7. Development Tools</h2>
+
+<h3>7.1 Overview</h3>
+
+<p>The Development Tools suite provides powerful tools for developers and administrators to manage and configure the application.</p>
+
+<strong>Note:</strong> Development Tools are typically restricted to users with "Developer" role.
+
+<h3>7.2 Menu Editor</h3>
+
+<h4>Purpose</h4>
+
+<p>The Menu Editor allows you to configure the application's navigation structure.</p>
+
+<h4>Accessing Menu Editor</h4>
+
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration)</li></ul>
+<ul><li>Click on <strong>Penyunting Menu</strong> (Menu Editor)</li></ul>
+
+<h4>Features</h4>
+
+<ul><li><strong>Create Menu Items:</strong> Add new navigation items</li></ul>
+<ul><li><strong>Edit Menu Items:</strong> Modify existing menu items</li></ul>
+<ul><li><strong>Delete Menu Items:</strong> Remove menu items</li></ul>
+<ul><li><strong>Reorder Menu Items:</strong> Drag and drop to reorganize</li></ul>
+<ul><li><strong>Set Permissions:</strong> Configure which roles can see each menu item</li></ul>
+<ul><li><strong>Hierarchical Structure:</strong> Create nested menu structures</li></ul>
+
+<h4>Using Menu Editor</h4>
+
+<ul><li>View the current menu structure</li></ul>
+<ul><li>Click <strong>Add</strong> to create a new menu item</li></ul>
+<ul><li>Configure:</li></ul>
+<p>   - Menu Title</p>
+<p>   - Path/URL</p>
+<p>   - Icon</p>
+<p>   - Parent Menu (for sub-items)</p>
+<p>   - Permissions</p>
+<ul><li>Save the menu item</li></ul>
+<ul><li>Use drag-and-drop to reorder items</li></ul>
+
+<h3>7.3 API Editor</h3>
+
+<h4>Purpose</h4>
+
+<p>The API Editor allows you to design, test, and document API endpoints.</p>
+
+<h4>Accessing API Editor</h4>
+
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration)</li></ul>
+<ul><li>Click on <strong>Penyunting API</strong> (API Editor)</li></ul>
+
+<h4>Features</h4>
+
+<ul><li><strong>Create API Endpoints:</strong> Design new API endpoints</li></ul>
+<ul><li><strong>Test APIs:</strong> Send requests and view responses</li></ul>
+<ul><li><strong>API Documentation:</strong> Generate and view API documentation</li></ul>
+<ul><li><strong>Request/Response Testing:</strong> Test different HTTP methods (GET, POST, PUT, DELETE)</li></ul>
+<ul><li><strong>Parameter Configuration:</strong> Set up query parameters, headers, and body</li></ul>
+
+<h4>Using API Editor</h4>
+
+<ul><li>View existing API endpoints</li></ul>
+<ul><li>Click <strong>Create</strong> to add a new endpoint</li></ul>
+<ul><li>Configure:</li></ul>
+<p>   - Endpoint URL</p>
+<p>   - HTTP Method</p>
+<p>   - Request Headers</p>
+<p>   - Request Body (for POST/PUT)</p>
+<p>   - Expected Response</p>
+<ul><li>Click <strong>Test</strong> to send a request</li></ul>
+<ul><li>View the response in the response panel</li></ul>
+
+<h3>7.4 Content Editor</h3>
+
+<h4>Purpose</h4>
+
+<p>The Content Editor allows you to manage dynamic content and templates.</p>
+
+<h4>Accessing Content Editor</h4>
+
+<ul><li>Navigate to <strong>Dashboard</strong></li></ul>
+<ul><li>Click on <strong>Content Editor</strong> under Dashboard submenu</li></ul>
+<p>   OR</p>
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration) if available</li></ul>
+
+<h4>Features</h4>
+
+<ul><li><strong>Create Content:</strong> Add new content pages</li></ul>
+<ul><li><strong>Edit Content:</strong> Modify existing content</li></ul>
+<ul><li><strong>Template Management:</strong> Create and edit templates</li></ul>
+<ul><li><strong>Content Versioning:</strong> Track content changes</li></ul>
+<ul><li><strong>Rich Text Editing:</strong> Use WYSIWYG editor for formatting</li></ul>
+
+<h4>Using Content Editor</h4>
+
+<ul><li>View list of content items</li></ul>
+<ul><li>Click <strong>Create</strong> to add new content</li></ul>
+<ul><li>Enter content details:</li></ul>
+<p>   - Title</p>
+<p>   - Content Body (using rich text editor)</p>
+<p>   - Template Selection</p>
+<p>   - Metadata</p>
+<ul><li>Save and publish content</li></ul>
+
+<h3>7.5 Code Playground</h3>
+
+<h4>Purpose</h4>
+
+<p>The Code Playground provides an in-browser environment to test and prototype code.</p>
+
+<h4>Accessing Code Playground</h4>
+
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration)</li></ul>
+<ul><li>Click on <strong>Code Playground</strong> (if available in menu)</li></ul>
+
+<h4>Features</h4>
+
+<ul><li><strong>Multiple Language Support:</strong> Test code in various programming languages</li></ul>
+<ul><li><strong>Real-time Execution:</strong> See results instantly</li></ul>
+<ul><li><strong>Code Sharing:</strong> Share code snippets</li></ul>
+<ul><li><strong>Syntax Highlighting:</strong> Enhanced code readability</li></ul>
+
+<h3>7.6 ORM Tools</h3>
+
+<h4>Purpose</h4>
+
+<p>ORM Tools provide database schema management and query capabilities.</p>
+
+<h4>Accessing ORM Tools</h4>
+
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration)</li></ul>
+<ul><li>Click on <strong>ORM Tools</strong> (if available in menu)</li></ul>
+
+<h4>Features</h4>
+
+<ul><li><strong>Schema Management:</strong> View and modify database schemas</li></ul>
+<ul><li><strong>Query Builder:</strong> Build database queries visually</li></ul>
+<ul><li><strong>Migration Tools:</strong> Manage database migrations</li></ul>
+<ul><li><strong>Data Browser:</strong> Browse and edit database records</li></ul>
+
+<h3>7.7 Configuration</h3>
+
+<h4>Purpose</h4>
+
+<p>The Configuration tool allows you to manage system settings and environment variables.</p>
+
+<h4>Accessing Configuration</h4>
+
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration)</li></ul>
+<ul><li>Click on <strong>Configuration</strong> (if available in menu)</li></ul>
+
+<h4>Features</h4>
+
+<ul><li><strong>Environment Variables:</strong> View and edit environment settings</li></ul>
+<ul><li><strong>System Settings:</strong> Configure application-wide settings</li></ul>
+<ul><li><strong>Feature Toggles:</strong> Enable/disable features</li></ul>
+<ul><li><strong>Theme Configuration:</strong> Customize application appearance</li></ul>
+
+<h3>7.8 Developer Guide</h3>
+
+<h4>Purpose</h4>
+
+<p>The Developer Guide provides documentation and resources for developers.</p>
+
+<h4>Accessing Developer Guide</h4>
+
+<ul><li>Navigate to <strong>Pentadbiran</strong> (Administration)</li></ul>
+<ul><li>Click on <strong>Panduan Pembangun</strong> (Developer Guide)</li></ul>
+
+<h4>Features</h4>
+
+<ul><li><strong>Framework Documentation:</strong> Learn about the framework</li></ul>
+<ul><li><strong>API Documentation:</strong> Reference for available APIs</li></ul>
+<ul><li><strong>Code Examples:</strong> Sample code snippets</li></ul>
+<ul><li><strong>Best Practices:</strong> Development guidelines</li></ul>
+
+<hr>
+
+<h2>8. Troubleshooting</h2>
+
+<h3>8.1 Common Issues</h3>
+
+<h4>Cannot Log In</h4>
+
+<strong>Problem:</strong> Unable to log in with correct credentials
+
+<strong>Solutions:</strong>
+<ul><li>Verify your username/email and password are correct</li></ul>
+<ul><li>Check if Caps Lock is enabled</li></ul>
+<ul><li>Clear browser cache and cookies</li></ul>
+<ul><li>Try using password recovery to reset your password</li></ul>
+<ul><li>Contact your administrator if the issue persists</li></ul>
+
+<h4>Page Not Loading</h4>
+
+<strong>Problem:</strong> Pages are not loading or showing errors
+
+<strong>Solutions:</strong>
+<ul><li>Check your internet connection</li></ul>
+<ul><li>Refresh the page (F5 or Ctrl+R)</li></ul>
+<ul><li>Clear browser cache</li></ul>
+<ul><li>Try a different browser</li></ul>
+<ul><li>Check if the application is under maintenance</li></ul>
+
+<h4>Data Not Appearing</h4>
+
+<strong>Problem:</strong> Tables or lists are empty when they should have data
+
+<strong>Solutions:</strong>
+<ul><li>Check if filters are applied that might hide data</li></ul>
+<ul><li>Clear filters and search again</li></ul>
+<ul><li>Verify you have proper permissions to view the data</li></ul>
+<ul><li>Refresh the page</li></ul>
+<ul><li>Check if there are any error messages</li></ul>
+
+<h4>Export Not Working</h4>
+
+<strong>Problem:</strong> CSV or PDF download is not working
+
+<strong>Solutions:</strong>
+<ul><li>Check if pop-up blockers are enabled and disable them</li></ul>
+<ul><li>Verify you have proper permissions</li></ul>
+<ul><li>Check browser download settings</li></ul>
+<ul><li>Try a different browser</li></ul>
+<ul><li>Ensure you have applied filters correctly</li></ul>
+
+<h3>8.2 Browser Compatibility</h3>
+
+<p>The application works best with:</p>
+<ul><li><strong>Chrome</strong> (latest version) - Recommended</li></ul>
+<ul><li><strong>Firefox</strong> (latest version)</li></ul>
+<ul><li><strong>Safari</strong> (latest version)</li></ul>
+<ul><li><strong>Edge</strong> (latest version)</li></ul>
+
+<h3>8.3 Performance Tips</h3>
+
+<ul><li>Clear browser cache regularly</li></ul>
+<ul><li>Close unnecessary browser tabs</li></ul>
+<ul><li>Disable browser extensions that might interfere</li></ul>
+<ul><li>Use a stable internet connection</li></ul>
+<ul><li>Keep your browser updated</li></ul>
+
+<hr>
+
+<h2>9. Support</h2>
+
+<h3>9.1 Getting Help</h3>
+
+<p>If you need assistance:</p>
+
+<ul><li><strong>Check Documentation:</strong> Review this user manual and other available documentation</li></ul>
+<ul><li><strong>Contact Administrator:</strong> Reach out to your system administrator</li></ul>
+<ul><li><strong>Developer Support:</strong> For technical issues, contact the development team</li></ul>
+<ul><li><strong>Issue Reporting:</strong> Report bugs or issues through the appropriate channels</li></ul>
+
+<h3>9.2 Contact Information</h3>
+
+<p>For support inquiries, please contact:</p>
+<ul><li><strong>System Administrator:</strong> [Your Administrator Contact]</li></ul>
+<ul><li><strong>Development Team:</strong> [Development Team Contact]</li></ul>
+<ul><li><strong>Support Email:</strong> [Support Email Address]</li></ul>
+
+<h3>9.3 Feedback</h3>
+
+<p>We welcome your feedback to improve the application. Please provide:</p>
+<ul><li>Feature requests</li></ul>
+<ul><li>Bug reports</li></ul>
+<ul><li>Usability suggestions</li></ul>
+<ul><li>General feedback</li></ul>
+
+<hr>
+
+<h2>Appendix A: Keyboard Shortcuts</h2>
+
+<ul><li><strong>Ctrl + K:</strong> Quick search (if available)</li></ul>
+<ul><li><strong>Esc:</strong> Close modals/dialogs</li></ul>
+<ul><li><strong>F5:</strong> Refresh page</li></ul>
+<ul><li><strong>Ctrl + F:</strong> Find on page</li></ul>
+
+<h2>Appendix B: Glossary</h2>
+
+<ul><li><strong>Account Code:</strong> A unique identifier for financial accounts</li></ul>
+<ul><li><strong>API:</strong> Application Programming Interface</li></ul>
+<ul><li><strong>CRUD:</strong> Create, Read, Update, Delete operations</li></ul>
+<ul><li><strong>ORM:</strong> Object-Relational Mapping</li></ul>
+<ul><li><strong>RBAC:</strong> Role-Based Access Control</li></ul>
+<ul><li><strong>WYSIWYG:</strong> What You See Is What You Get (editor)</li></ul>
+
+<hr>
+
+<h2>Document Information</h2>
+
+<strong>Document Version:</strong> 1.0.0  
+<strong>Last Updated:</strong> 2024  
+<strong>Framework Version:</strong> corradAF 1.0.0  
+<strong>Application:</strong> CORRAD Application Framework
+
+<hr>
+
+<em>This user manual is provided as a guide to help you effectively use the CORRAD Application Framework. For the most up-to-date information, please refer to the application's built-in help system or contact your administrator.</em>
+
+
+  
+  <script>
+    // Add print functionality
+    window.addEventListener('load', function() {
+      console.log('User Manual loaded. Press Ctrl+P (Cmd+P on Mac) to print to PDF.');
+    });
+  </script>
+</body>
+</html>

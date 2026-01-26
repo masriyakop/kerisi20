@@ -1,0 +1,208 @@
+/*================================================================================
+   Compact UI Styles - Reduces spacing, padding, and font sizes globally
+  ================================================================================*/
+
+/* Base Font Size Reduction */
+#__nuxt {
+  font-size: 13px; /* Reduced from 14px */
+}
+
+/* Header Compact */
+.w-header {
+  @apply py-2; /* Reduced from py-3 */
+  padding-left: 0.75rem; /* Reduced from px-5 (1.25rem) */
+  padding-right: 0.75rem;
+}
+
+.w-header-search {
+  @apply px-3; /* Reduced from px-4 */
+}
+
+/* Card Compact */
+.rs-card {
+  .card-header {
+    padding: 0.75rem 1rem !important; /* Reduced from default */
+    font-size: 0.875rem !important; /* Reduced from 1rem */
+  }
+  
+  .card-body {
+    padding: 0.75rem !important; /* Reduced from default 1.5rem */
+  }
+  
+  .card-footer {
+    padding: 0.75rem 1rem !important; /* Reduced from default */
+  }
+}
+
+/* Button Compact */
+.rs-button,
+button[type="button"],
+button[type="submit"] {
+  padding: 0.375rem 0.75rem !important; /* Reduced from default */
+  font-size: 0.75rem !important; /* Reduced from 0.875rem */
+  height: auto !important;
+  min-height: 2rem !important; /* Reduced from 2.5rem */
+  line-height: 1.25 !important;
+  
+  &.btn-sm,
+  &[class*="h-8"] {
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.6875rem !important;
+    min-height: 1.75rem !important;
+  }
+  
+  &.btn-lg,
+  &[class*="h-10"] {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.8125rem !important;
+    min-height: 2.25rem !important;
+  }
+}
+
+/* Form Input Compact */
+.formkit-input,
+.formkit-wrapper input,
+.formkit-wrapper select,
+.formkit-wrapper textarea {
+  padding: 0.375rem 0.5rem !important; /* Reduced from default */
+  font-size: 0.75rem !important; /* Reduced from 0.875rem */
+  min-height: 2rem !important; /* Reduced from 2.5rem */
+  line-height: 1.25 !important;
+}
+
+.formkit-label {
+  font-size: 0.75rem !important; /* Reduced from 0.875rem */
+  margin-bottom: 0.25rem !important; /* Reduced from 0.5rem */
+}
+
+.formkit-help {
+  font-size: 0.6875rem !important; /* Reduced from 0.75rem */
+  margin-top: 0.125rem !important;
+}
+
+.formkit-messages {
+  font-size: 0.6875rem !important;
+  margin-top: 0.125rem !important;
+}
+
+/* Table Compact */
+.rs-table {
+  th, td {
+    padding: 0.5rem 0.75rem !important; /* Reduced from default */
+    font-size: 0.75rem !important;
+  }
+  
+  th {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+  }
+}
+
+/* Modal Compact */
+.rs-modal {
+  .modal-header {
+    padding: 0.75rem 1rem !important; /* Reduced from default */
+    font-size: 0.875rem !important;
+  }
+  
+  .modal-body {
+    padding: 1rem !important; /* Reduced from default 1.5rem */
+    font-size: 0.75rem !important;
+  }
+  
+  .modal-footer {
+    padding: 0.75rem 1rem !important; /* Reduced from default */
+  }
+}
+
+/* Badge Compact */
+.badge,
+.rs-badge {
+  padding: 0.125rem 0.375rem !important; /* Reduced from default */
+  font-size: 0.6875rem !important; /* Reduced from 0.75rem */
+  line-height: 1.25 !important;
+}
+
+/* Alert Compact */
+.alert,
+.rs-alert {
+  padding: 0.5rem 0.75rem !important; /* Reduced from default */
+  font-size: 0.75rem !important;
+  
+  .alert-title {
+    font-size: 0.8125rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+}
+
+/* Dropdown Compact */
+.dropdown-menu,
+.rs-dropdown-menu {
+  padding: 0.25rem !important; /* Reduced from 0.5rem */
+  font-size: 0.75rem !important;
+  
+  .dropdown-item {
+    padding: 0.375rem 0.75rem !important; /* Reduced from default */
+    font-size: 0.75rem !important;
+  }
+}
+
+/* Pagination Compact */
+.pagination {
+  .page-item {
+    .page-link {
+      padding: 0.375rem 0.5rem !important; /* Reduced from default */
+      font-size: 0.75rem !important;
+      min-height: 2rem !important;
+    }
+  }
+}
+
+/* Breadcrumb Compact */
+.breadcrumb,
+.rs-breadcrumb {
+  font-size: 0.75rem !important;
+  padding: 0.5rem 0 !important;
+  
+  .breadcrumb-item {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* Note: Spacing utilities are handled by Tailwind config or inline classes */
+/* These overrides only apply to specific component classes, not utility classes */
+
+/* Icon Sizes Compact */
+.icon-sm {
+  width: 0.875rem !important;
+  height: 0.875rem !important;
+}
+
+.icon-md {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.icon-lg {
+  width: 1.125rem !important;
+  height: 1.125rem !important;
+}
+
+/* FormKit Specific Compact */
+.formkit-outer {
+  margin-bottom: 0.5rem !important; /* Reduced from 1rem */
+}
+
+.formkit-inner {
+  margin-bottom: 0 !important;
+}
+
+/* Content Page Compact */
+.content-page {
+  padding: 4rem 1rem 0.5rem 1rem !important; /* Reduced from 6rem 2rem 10px 2rem */
+  
+  @media screen and (max-width: 768px) {
+    padding: 4rem 0.75rem 0.5rem 0.75rem !important; /* Reduced from 6rem 1.25rem 0 1.25rem */
+  }
+}
+

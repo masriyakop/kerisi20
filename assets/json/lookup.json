@@ -1,0 +1,33 @@
+{
+  "ComponentType": [
+    { "id": 100, "name": "form_1_col" },
+    { "id": 101, "name": "form_TopFilter" },
+    { "id": 102, "name": "form_SmartFilter" },
+    { "id": 103, "name": "form_PopupModal" },
+    { "id": 104, "name": "datatable" }
+  ],
+    "ComponentItemType": [
+      { "id": 1, "name": "textfield" },
+      { "id": 2, "name": "radio" },
+      { "id": 3, "name": "checkbox" },
+      { "id": 4, "name": "date" },
+      { "id": 5, "name": "dropdown" },
+      { "id": 6, "name": "textarea" },
+      { "id": 7, "name": "fileupload" },
+      { "id": 8, "name": "html" },
+      { "id": 9, "name": "iframe" },
+      { "id": 10, "name": "button" },
+      { "id": 11, "name": "link" },
+      { "id": 12, "name": "image" },
+      { "id": 13, "name": "video" },
+      { "id": 14, "name": "audio" },
+      { "id": 15, "name": "map" },
+      { "id": 16, "name": "custom" },
+      { "id": 17, "name": "dropzone" },
+      { "id": 18, "name": "dropzonemini" },
+      { "id": 19, "name": "file" },
+      { "id": 20, "name": "label" },
+      { "id": 21, "name": "listbox" },
+      { "id": 22, "name": "password" }
+    ]
+  }
