@@ -15,10 +15,9 @@ export default [
             "child": [
               {
                 "title": "Fund Type",
-                "path": "/fundtype",
+                "path": "/setup/glstructure/fundtype/fundtype",
                 "icon": "",
-                "child": [],
-                "meta": {}
+                "child": []
               },
               {
                 "title": "Activity Code",
@@ -946,7 +945,7 @@ export default [
           },
           {
             "title": "Page Editor",
-            "path": "/pageeditor",
+            "path": "/page-creator",
             "icon": "icon-park:editor",
             "child": [
               {
@@ -964,9 +963,17 @@ export default [
               },
               {
                 "title": "Pengujian Muka",
-                "path": "/pengujianmuka",
+                "path": "/page-editor/pengujianmuka",
                 "icon": "",
-                "child": [],
+                "child": [
+                  {
+                    "title": "Structure Budget List",
+                    "path": "/page-editor/pengujianmuka/structurebudgetlist",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  }
+                ],
                 "meta": {}
               }
             ],
@@ -1074,6 +1081,12 @@ export default [
                 "child": []
               }
             ]
+          },
+          {
+            "title": "Message List",
+            "path": "/messagemanagement/messagelist",
+            "icon": "",
+            "child": []
           }
         ],
         "meta": {}
@@ -1100,4 +1113,4 @@ export default [
       }
     }
   }
-]
+];

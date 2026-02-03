@@ -843,10 +843,10 @@ watch(
       <div class="p-8 text-center">
         <Icon name="mdi:table-off" class="text-gray-300 mb-4" size="48px" />
         <p class="text-[rgb(var(--text-color))] text-lg font-medium">
-          Tiada data
+          No Data
         </p>
         <p class="text-gray-500 mt-2">
-          Tiada entri untuk dipaparkan pada masa ini.
+          There are currently no entries to display.
         </p>
       </div>
     </div>

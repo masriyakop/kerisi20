@@ -86,6 +86,7 @@
     "codemirror": "^6.0.1",
     "cross-env": "^7.0.3",
     "crypto-js": "^4.1.1",
+    "exceljs": "^4.4.0",
     "floating-vue": "^2.0.0-beta.24",
     "jsonwebtoken": "^8.5.1",
     "jspdf": "^2.5.1",
@@ -113,6 +114,7 @@
     "vue3-click-away": "^1.2.4",
     "vue3-dropzone": "^2.0.1",
     "vue3-recaptcha-v2": "^2.0.2",
-    "vuedraggable": "^4.1.0"
+    "vuedraggable": "^4.1.0",
+    "xlsx": "^0.18.5"
   }
 }

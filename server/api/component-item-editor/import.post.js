@@ -174,6 +174,7 @@ export default defineEventHandler(async (event) => {
             additionalAttribute: (itemData["Additional Attribute"] || itemData.additionalAttribute || "").toString().trim(),
             defaultValue: (itemData["Default Value"] || itemData.defaultValue || "").toString().trim(),
             lookup_queryMapping: (itemData["lookup_queryMapping"] || itemData.lookup_queryMapping || "").toString().trim(),
+            crudColumn: (itemData["crudColumn"] || itemData.crudColumn || "").toString().trim(),
             visible: itemData.Visible !== undefined ? (itemData.Visible === 1 || itemData.Visible === true ? 1 : 0) : 1,
             active: itemData.Status !== undefined ? (itemData.Status === 1 || itemData.Status === true ? 1 : 0) : (itemData.Active !== undefined ? (itemData.Active === 1 || itemData.Active === true ? 1 : 0) : 1),
             order: itemData.Order ? parseInt(itemData.Order) || 1 : 1,

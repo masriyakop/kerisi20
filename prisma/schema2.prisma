@@ -8,57 +8,221 @@ datasource db {
   url      = env("DATABASE_URL2")
 }
 
-// Example models for second database
-// You can modify these or add your own models
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model adm_message_log {
+  ml_message_log_id    BigInt             @id @default(autoincrement())
+  mm_mesg_code         String             @db.VarChar(50)
+  ml_user_id           String?            @db.VarChar(50)
+  ml_user_role         String?            @db.VarChar(50)
+  ml_page_name         String?            @db.VarChar(200)
+  ml_user_action       String?            @db.VarChar(50)
+  ml_root_cause        String?            @db.VarChar(100)
+  ml_resolution_action String?            @db.VarChar(1000)
+  ml_preventive_action String?            @db.VarChar(1000)
+  ml_resolvedby        String?            @db.VarChar(255)
+  ml_status            String             @default("OPEN") @db.VarChar(50)
+  ml_resolveddate      DateTime?          @db.DateTime(0)
+  ml_module_name       String?            @db.VarChar(100)
+  ml_page_breadcrumb   String?            @db.VarChar(250)
+  createddate          DateTime           @default(now()) @db.DateTime(0)
+  createdby            String             @db.VarChar(255)
+  updateddate          DateTime?          @default(now()) @db.DateTime(0)
+  updatedby            String?            @db.VarChar(255)
+  adm_message_master   adm_message_master @relation(fields: [mm_mesg_code], references: [mm_mesg_code], map: "fk_adm_message_log_mesg_code")
 
-model User {
-  id        Int       @id @default(autoincrement())
-  username  String    @unique @db.VarChar(255)
-  email     String    @unique @db.VarChar(255)
-  fullName  String?   @db.VarChar(255)
-  phone     String?   @db.VarChar(50)
-  status    String?   @default("active") @db.VarChar(20)
-  createdAt DateTime? @default(now()) @db.DateTime(0)
-  updatedAt DateTime? @updatedAt @db.DateTime(0)
-  createdBy String?   @db.VarChar(250)
-  updatedBy String?   @db.VarChar(250)
-  
-  posts     Post[]
-  comments  Comment[]
+  @@index([mm_mesg_code], map: "fk_adm_message_log_mesg_code")
 }
 
-model Post {
-  id        Int       @id @default(autoincrement())
-  title     String    @db.VarChar(500)
-  content   String?   @db.Text
-  status    String?   @default("draft") @db.VarChar(20)
-  userId    Int
-  createdAt DateTime? @default(now()) @db.DateTime(0)
-  updatedAt DateTime? @updatedAt @db.DateTime(0)
-  createdBy String?   @db.VarChar(250)
-  updatedBy String?   @db.VarChar(250)
-  
-  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  comments  Comment[]
-  
-  @@index([userId])
-  @@index([status])
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model adm_message_master {
+  mm_mesg_id        BigInt            @unique(map: "uq_adm_message_master_id") @default(autoincrement())
+  mm_mesg_code      String            @id @db.VarChar(50)
+  mm_mesg_type      String            @db.VarChar(30)
+  mm_mesg_category  String            @db.VarChar(30)
+  mm_user_mesg      String            @db.VarChar(255)
+  mm_technical_mesg String?           @db.VarChar(550)
+  mm_display_color  String?           @db.VarChar(10)
+  mm_display_icon   String?           @db.VarChar(50)
+  mm_mesg_note      String?           @db.VarChar(255)
+  mm_mesg_hastag    String?           @db.VarChar(255)
+  mm_active_flag    String            @default("Y") @db.Char(1)
+  createddate       DateTime          @default(now()) @db.DateTime(0)
+  createdby         String            @db.VarChar(255)
+  updateddate       DateTime?         @default(now()) @db.DateTime(0)
+  updatedby         String?           @db.VarChar(255)
+  adm_message_log   adm_message_log[]
 }
 
-model Comment {
-  id        Int       @id @default(autoincrement())
-  content   String    @db.Text
-  postId    Int
-  userId    Int
-  status    String?   @default("active") @db.VarChar(20)
-  createdAt DateTime? @default(now()) @db.DateTime(0)
-  updatedAt DateTime? @updatedAt @db.DateTime(0)
-  createdBy String?   @db.VarChar(250)
-  updatedBy String?   @db.VarChar(250)
-  
-  post      Post      @relation(fields: [postId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  
-  @@index([postId])
-  @@index([userId])
+model role {
+  roleID           Int        @id @default(autoincrement())
+  roleName         String?    @db.VarChar(255)
+  roleDescription  String?    @db.VarChar(255)
+  roleStatus       String?    @db.VarChar(255)
+  roleCreatedDate  DateTime?  @db.DateTime(0)
+  roleModifiedDate DateTime?  @db.DateTime(0)
+  userrole         userrole[]
+}
+
+model user {
+  userID           Int        @id @default(autoincrement())
+  userSecretKey    String?    @db.VarChar(255)
+  userUsername     String?    @db.VarChar(255)
+  userPassword     String?    @db.VarChar(255)
+  userFullName     String?    @db.VarChar(255)
+  userEmail        String?    @db.VarChar(255)
+  userPhone        String?    @db.VarChar(255)
+  userStatus       String?    @db.VarChar(255)
+  userCreatedDate  DateTime?  @db.DateTime(0)
+  userModifiedDate DateTime?  @db.DateTime(0)
+  userrole         userrole[]
+}
+
+model userrole {
+  userRoleID          Int      @id @default(autoincrement())
+  userRoleUserID      Int      @default(0)
+  userRoleRoleID      Int      @default(0)
+  userRoleCreatedDate DateTime @db.DateTime(0)
+  role                role     @relation(fields: [userRoleRoleID], references: [roleID], onDelete: NoAction, onUpdate: NoAction, map: "FK_userrole_role")
+  user                user     @relation(fields: [userRoleUserID], references: [userID], onDelete: NoAction, onUpdate: NoAction, map: "FK_userrole_user")
+
+  @@index([userRoleRoleID], map: "FK_userrole_role")
+  @@index([userRoleUserID], map: "FK_userrole_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model wf_process_action {
+  wpa_process_action_id Int                 @id @default(autoincrement())
+  wpa_process_id        Int
+  wpa_status_code       String?             @db.VarChar(20)
+  wpa_reroute_process   Int?
+  wpa_bl_to_exec        String?             @db.VarChar(255)
+  wpa_order             Int?
+  wpa_extended_field    Json?
+  createddate           DateTime?           @default(now()) @db.DateTime(0)
+  createdby             String?             @db.VarChar(100)
+  updateddate           DateTime?           @db.DateTime(0)
+  updatedby             String?             @db.VarChar(100)
+  wf_workflow_details   wf_workflow_details @relation(fields: [wpa_process_id], references: [wfd_workflow_details_id], onDelete: Cascade, map: "fk_wpa_process_id")
+
+  @@unique([wpa_process_id, wpa_status_code], map: "un_process_details_01")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model wf_process_rule {
+  wpr_workflow_process_rule_id Int                 @id @default(autoincrement())
+  wpr_process_id               Int
+  wpr_rule_code                String              @db.VarChar(100)
+  wpr_role_code                String              @db.VarChar(100)
+  wpr_limit_min                Decimal?            @db.Decimal(15, 2)
+  wpr_limit_max                Decimal?            @db.Decimal(15, 2)
+  wpr_business_rule_id         Int?
+  createddate                  DateTime?           @default(now()) @db.DateTime(0)
+  createdby                    String?             @db.VarChar(100)
+  updateddate                  DateTime?           @db.DateTime(0)
+  updatedby                    String?             @db.VarChar(100)
+  wf_workflow_details          wf_workflow_details @relation(fields: [wpr_process_id], references: [wfd_workflow_details_id], onDelete: Cascade, map: "fk_wpr_process_id")
+
+  @@index([wpr_process_id], map: "fk_wpr_process_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model wf_task {
+  wtk_task_id         Int                 @id @default(autoincrement())
+  wtk_process_id      Int
+  wtk_document_code   String?             @db.VarChar(100)
+  wtk_workflow_code   String              @db.VarChar(20)
+  wtk_task_name       String              @db.VarChar(3000)
+  wtk_task_url        String?             @db.VarChar(500)
+  wtk_staff_id        String              @db.VarChar(20)
+  wtk_task_type       String              @db.VarChar(50)
+  wtk_status          String              @db.VarChar(20)
+  wtk_sequence        Int?
+  wtk_is_accessing    String?             @db.VarChar(1)
+  wtk_accepteddate    DateTime?           @db.DateTime(0)
+  wtk_extended_field  Json?
+  createddate         DateTime?           @default(now()) @db.DateTime(0)
+  createdby           String?             @db.VarChar(100)
+  updateddate         DateTime?           @db.DateTime(0)
+  updatedby           String?             @db.VarChar(100)
+  wf_workflow_details wf_workflow_details @relation(fields: [wtk_process_id], references: [wfd_workflow_details_id], onDelete: NoAction, onUpdate: NoAction, map: "wtk_process_id")
+
+  @@index([wtk_process_id], map: "fk_task_01_idx")
+  @@index([wtk_status], map: "ind_task_01")
+  @@index([wtk_document_code], map: "ind_task_02")
+  @@index([wtk_staff_id], map: "ind_task_03")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model wf_task_action_log {
+  wal_task_action_log_id      Int       @id @default(autoincrement())
+  wal_document_code           String    @db.VarChar(100)
+  wal_process_id              Int
+  wal_workflow_code           String?   @db.VarChar(20)
+  wal_task_id                 Int?
+  wal_sequence                Int
+  wal_status                  String    @db.VarChar(100)
+  wal_status_desc             String    @db.VarChar(250)
+  wal_notes                   String?   @db.VarChar(4000)
+  wal_createdby_position_code String?   @db.VarChar(30)
+  wal_createdby_position_desc String    @db.VarChar(250)
+  wal_createdby_ptj           String?   @db.VarChar(50)
+  wal_createdby_ptj_desc      String    @db.VarChar(250)
+  createdby_name              String    @db.VarChar(250)
+  stf_staff_id                String?   @db.VarChar(45)
+  stf_ad_username             String?   @db.VarChar(45)
+  wal_page_id                 Int
+  wal_extended_field          Json?
+  createddate                 DateTime? @default(now()) @db.DateTime(0)
+  createdby                   String?   @db.VarChar(100)
+  updateddate                 DateTime? @db.DateTime(0)
+  updatedby                   String?   @db.VarChar(100)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model wf_workflow_details {
+  wfd_workflow_details_id   Int                 @id @default(autoincrement())
+  wfd_workflow_code         String?             @db.VarChar(20)
+  wfd_process_name          String              @db.VarChar(500)
+  wfd_process_desc          String?             @db.VarChar(1000)
+  wfd_sequence              Int
+  wfd_is_email_notification Int?                @default(1)
+  wfd_notofication_id       Int?                @default(1)
+  wfd_is_todo_notification  Int?                @default(1)
+  wfd_is_by_group           Int?
+  wfd_is_by_gl              Int?
+  wfd_is_by_org_chart       Int?
+  wfd_is_digitally_sign     Int?
+  wfd_duration_kpi          Int?
+  wfd_notes                 String?             @db.VarChar(500)
+  wfd_processedby_desc      String?             @db.VarChar(250)
+  wfd_type                  String              @db.VarChar(50)
+  wfd_status                String              @db.VarChar(20)
+  wfd_extended_field        Json?
+  createddate               DateTime?           @default(now()) @db.DateTime(0)
+  createdby                 String?             @db.VarChar(100)
+  updateddate               DateTime?           @db.DateTime(0)
+  updatedby                 String?             @db.VarChar(100)
+  wf_process_action         wf_process_action[]
+  wf_process_rule           wf_process_rule[]
+  wf_task                   wf_task[]
+  wf_workflow_master        wf_workflow_master? @relation(fields: [wfd_workflow_code], references: [wfm_workflow_code], onDelete: Cascade, map: "fk_wfd_workflow_code")
+
+  @@unique([wfd_workflow_code, wfd_process_name, wfd_sequence], map: "uq_process_01")
+  @@index([wfd_workflow_code], map: "fk_workflowname_01")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model wf_workflow_master {
+  wfm_workflow_code        String                @id @db.VarChar(50)
+  wfm_workflow_title       String                @db.VarChar(1000)
+  wfm_prevent_self_process Int?
+  wfm_involve_posting      Int                   @default(1)
+  wfm_is_dashboard_appear  Int?                  @default(0)
+  wfm_dashboard_label      Int?                  @default(0)
+  wfm_dashboard_sequence   Int?                  @default(0)
+  createddate              DateTime?             @default(now()) @db.DateTime(0)
+  createdby                String?               @db.VarChar(100)
+  updateddate              DateTime?             @db.DateTime(0)
+  updatedby                String?               @db.VarChar(100)
+  wf_workflow_details      wf_workflow_details[]
 }

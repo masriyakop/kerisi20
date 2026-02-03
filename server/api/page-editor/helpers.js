@@ -50,6 +50,7 @@ export const buildResponseData = (pages) =>
     pageTitle: item.pageTitle || "",
     menu: item.menu || "",
     status: item.status || "ACTIVE",
+    customized: item.customized !== undefined ? item.customized : 0,
     createdTimestamp: item.createdTimestamp || "",
     updateTimestamp: item.updateTimestamp || "",
     action: "",

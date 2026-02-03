@@ -53,13 +53,20 @@ const dtConfig = ref({
   dt_bPaginate: true,
   dt_freeze_left: "0",
   dt_freeze_right: "0",
-  dt_filter: "default",
+  dt_filter: "none",
+  dt_popup_view: false,
+  dt_popup_edit: false,
+  dt_popup_add: false,
+  dt_popup_delete: false,
+  dt_download_pdf: false,
+  dt_download_csv: false,
+  dt_download_excel: false,
 });
 
 const filterOptions = [
-  { label: "Default", value: "default" },
-  { label: "Smart", value: "smart" },
   { label: "None", value: "none" },
+  { label: "Smart", value: "smart" },
+  { label: "Top", value: "top" },
 ];
 
 // Load component types from lookup.json
@@ -95,8 +102,8 @@ const sortOptions = [
 
 const normalizeRows = () => {
   const maxLen = Math.max(
-    dtConfig.value.dt_bm.length,
     dtConfig.value.dt_bi.length,
+    dtConfig.value.dt_bm.length,
     dtConfig.value.dt_class.length,
     dtConfig.value.dt_key.length,
     dtConfig.value.dt_sort.length,
@@ -106,8 +113,8 @@ const normalizeRows = () => {
     while (arr.length < maxLen) arr.push("");
     return arr;
   };
-  dtConfig.value.dt_bm = ensureLength(dtConfig.value.dt_bm || []);
   dtConfig.value.dt_bi = ensureLength(dtConfig.value.dt_bi || []);
+  dtConfig.value.dt_bm = ensureLength(dtConfig.value.dt_bm || []);
   dtConfig.value.dt_class = ensureLength(dtConfig.value.dt_class || []);
   dtConfig.value.dt_key = ensureLength(dtConfig.value.dt_key || []);
   dtConfig.value.dt_sort = ensureLength(dtConfig.value.dt_sort || []);
@@ -131,7 +138,14 @@ const parseComponentData = (componentData) => {
       dt_bPaginate: parsed.dt_bPaginate === "true" || parsed.dt_bPaginate === true,
       dt_freeze_left: parsed.dt_freeze_left?.toString() || "0",
       dt_freeze_right: parsed.dt_freeze_right?.toString() || "0",
-      dt_filter: parsed.dt_filter || "default",
+      dt_filter: parsed.dt_filter || "none",
+      dt_popup_view: parsed.dt_popup_view === "true" || parsed.dt_popup_view === true || false,
+      dt_popup_edit: parsed.dt_popup_edit === "true" || parsed.dt_popup_edit === true || false,
+      dt_popup_add: parsed.dt_popup_add === "true" || parsed.dt_popup_add === true || false,
+      dt_popup_delete: parsed.dt_popup_delete === "true" || parsed.dt_popup_delete === true || false,
+      dt_download_pdf: parsed.dt_download_pdf === "true" || parsed.dt_download_pdf === true || false,
+      dt_download_csv: parsed.dt_download_csv === "true" || parsed.dt_download_csv === true || false,
+      dt_download_excel: parsed.dt_download_excel === "true" || parsed.dt_download_excel === true || false,
     };
     normalizeRows();
   } catch (err) {
@@ -245,18 +259,27 @@ const handleBack = async () => {
       if (saveSuccess) {
         // Wait a moment for the success message to be visible, then navigate
         setTimeout(() => {
-          router.back();
+          navigateToPageCreator();
         }, 500);
       }
       // If save failed, stay on page (error already shown by handleSave)
     } else if (result.isDenied) {
       // Discard changes and navigate back
-      router.back();
+      navigateToPageCreator();
     }
     // If cancelled, do nothing (stay on page)
   } else {
     // No changes, navigate back immediately
-    router.back();
+    navigateToPageCreator();
+  }
+};
+
+// Navigate to Page Creator with pageId and componentId to restore selection
+const navigateToPageCreator = () => {
+  if (pageId.value && componentId.value) {
+    router.push(`/page-creator?pageId=${pageId.value}&componentId=${componentId.value}`);
+  } else {
+    router.push("/page-creator");
   }
 };
 
@@ -275,8 +298,8 @@ onMounted(async () => {
 });
 
 const handleAddRow = () => {
-  dtConfig.value.dt_bm.push("");
   dtConfig.value.dt_bi.push("");
+  dtConfig.value.dt_bm.push("");
   dtConfig.value.dt_class.push("");
   dtConfig.value.dt_key.push("");
   dtConfig.value.dt_sort.push("unsortable");
@@ -286,6 +309,27 @@ const handleDeleteRow = (idx) => {
   const arrays = ["dt_bm", "dt_bi", "dt_class", "dt_key", "dt_sort"];
   arrays.forEach((key) => {
     if (Array.isArray(dtConfig.value[key])) dtConfig.value[key].splice(idx, 1);
+  });
+};
+
+// Keep all column configuration arrays in sync when rows are reordered via drag & drop
+const handleRowReorder = (evt) => {
+  const move = evt?.moved;
+  if (!move) return;
+
+  const { oldIndex, newIndex } = move;
+  if (oldIndex === undefined || newIndex === undefined) return;
+
+  // Sync all other arrays with dt_bi (which is the draggable model)
+  const arraysToSync = ["dt_bm", "dt_class", "dt_key", "dt_sort"];
+
+  arraysToSync.forEach((key) => {
+    const arr = dtConfig.value[key];
+    if (!Array.isArray(arr)) return;
+    if (oldIndex < 0 || oldIndex >= arr.length || newIndex < 0 || newIndex >= arr.length) return;
+
+    const [item] = arr.splice(oldIndex, 1);
+    arr.splice(newIndex, 0, item);
   });
 };
 
@@ -307,6 +351,81 @@ const handleSave = async () => {
       title: "Error",
       text: "Component ID is missing",
       icon: "error",
+    });
+    return false;
+  }
+
+  // Validate datatable configuration rows - Title BI, Title BM, and Key are required
+  const rowCount = dtConfig.value.dt_bi.length;
+  const emptyRows = [];
+  
+  for (let i = 0; i < rowCount; i++) {
+    const titleBi = dtConfig.value.dt_bi[i]?.trim() || "";
+    const titleBm = dtConfig.value.dt_bm[i]?.trim() || "";
+    const key = dtConfig.value.dt_key[i]?.trim() || "";
+    
+    const missingFields = [];
+    if (!titleBi) missingFields.push("Title BI");
+    if (!titleBm) missingFields.push("Title BM");
+    if (!key) missingFields.push("Key");
+    
+    if (missingFields.length > 0) {
+      emptyRows.push({ row: i + 1, fields: missingFields });
+    }
+  }
+  
+  if (emptyRows.length > 0) {
+    const errorDetails = emptyRows.map(r => `Row ${r.row}: ${r.fields.join(", ")}`).join("<br>");
+    $swal.fire({
+      title: "Validation Error",
+      html: `Please fill in required fields (Title BI, Title BM, Key) for all rows:<br><br>${errorDetails}`,
+      icon: "warning",
+    });
+    return false;
+  }
+
+  // Check for duplicate values in Title BM, Title BI, and Key
+  const findDuplicates = (arr) => {
+    const valueToRows = new Map();
+    arr.forEach((value, index) => {
+      const trimmed = value?.trim() || "";
+      if (trimmed) {
+        if (!valueToRows.has(trimmed)) {
+          valueToRows.set(trimmed, []);
+        }
+        valueToRows.get(trimmed).push(index + 1); // 1-based row number
+      }
+    });
+    // Return only values that appear more than once
+    const duplicates = [];
+    valueToRows.forEach((rows, value) => {
+      if (rows.length > 1) {
+        duplicates.push({ value, rows });
+      }
+    });
+    return duplicates;
+  };
+
+  const duplicateBi = findDuplicates(dtConfig.value.dt_bi);
+  const duplicateBm = findDuplicates(dtConfig.value.dt_bm);
+  const duplicateKey = findDuplicates(dtConfig.value.dt_key);
+
+  const allDuplicates = [];
+  if (duplicateBi.length > 0) {
+    duplicateBi.forEach(d => allDuplicates.push(`Title BI "${d.value}" is duplicated in rows ${d.rows.join(", ")}`));
+  }
+  if (duplicateBm.length > 0) {
+    duplicateBm.forEach(d => allDuplicates.push(`Title BM "${d.value}" is duplicated in rows ${d.rows.join(", ")}`));
+  }
+  if (duplicateKey.length > 0) {
+    duplicateKey.forEach(d => allDuplicates.push(`Key "${d.value}" is duplicated in rows ${d.rows.join(", ")}`));
+  }
+
+  if (allDuplicates.length > 0) {
+    $swal.fire({
+      title: "Validation Error",
+      html: `Duplicate values are not allowed:<br><br>${allDuplicates.join("<br>")}`,
+      icon: "warning",
     });
     return false;
   }
@@ -555,7 +674,7 @@ const handleSave = async () => {
                 <div class="flex items-center gap-2">
                   <label class="w-32 text-xs font-medium">Length Per Page:</label>
                   <div class="flex-1 flex items-center gap-3">
-                    <div class="flex-1">
+                    <div class="w-20">
                       <FormKit
                         v-model="dtConfig.dt_pageLength"
                         type="number"
@@ -579,6 +698,30 @@ const handleSave = async () => {
                         class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                       />
                       <label class="text-xs font-medium">Show Pagination</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_download_pdf"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Download PDF</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_download_csv"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Download CSV</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_download_excel"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Download Excel</label>
                     </div>
                   </div>
                 </div>
@@ -621,48 +764,104 @@ const handleSave = async () => {
                   </div>
                 </div>
 
+                <!-- Popup Modal -->
+                <div class="flex items-center gap-2">
+                  <label class="w-32 text-xs font-medium">Popup Modal:</label>
+                  <div class="flex-1 flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_popup_view"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">View</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_popup_edit"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Edit</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_popup_add"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Add</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_popup_delete"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Delete</label>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="overflow-auto">
                   <table class="min-w-full border border-gray-200 dark:border-gray-700 text-sm">
                     <thead class="bg-gray-100 dark:bg-gray-800">
                       <tr>
-                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Title BM</th>
-                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Title BI</th>
+                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Title BI <span class="text-red-500">*</span></th>
+                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Title BM <span class="text-red-500">*</span></th>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Class</th>
-                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Key</th>
+                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Key <span class="text-red-500">*</span></th>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Sort</th>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Action</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      <tr v-for="(bm, idx) in dtConfig.dt_bm" :key="idx">
-                        <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
-                          <input v-model="dtConfig.dt_bm[idx]" class="w-full input input-sm" />
-                        </td>
-                        <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
-                          <input v-model="dtConfig.dt_bi[idx]" class="w-full input input-sm" />
-                        </td>
-                        <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
-                          <input v-model="dtConfig.dt_class[idx]" class="w-full input input-sm" />
-                        </td>
-                        <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
-                          <input v-model="dtConfig.dt_key[idx]" class="w-full input input-sm" />
-                        </td>
-                        <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
-                          <select v-model="dtConfig.dt_sort[idx]" class="w-full input input-sm">
-                            <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
-                              {{ opt.label }}
-                            </option>
-                          </select>
-                        </td>
-                        <td class="px-2 py-1 border border-gray-200 dark:border-gray-700 text-center">
-                          <div class="flex items-center justify-center gap-2 text-primary">
-                            <button class="text-red-500 hover:text-red-600" title="Delete" @click="handleDeleteRow(idx)">
-                              <Icon name="material-symbols:delete" size="16" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
+                    <draggable
+                      v-model="dtConfig.dt_bi"
+                      tag="tbody"
+                      handle=".drag-handle"
+                      @change="handleRowReorder"
+                    >
+                      <template #item="{ index }">
+                        <tr>
+                          <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
+                            <input v-model="dtConfig.dt_bi[index]" class="w-full input input-sm" />
+                          </td>
+                          <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
+                            <input v-model="dtConfig.dt_bm[index]" class="w-full input input-sm" />
+                          </td>
+                          <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
+                            <input v-model="dtConfig.dt_class[index]" class="w-full input input-sm" />
+                          </td>
+                          <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
+                            <input v-model="dtConfig.dt_key[index]" class="w-full input input-sm" />
+                          </td>
+                          <td class="px-2 py-1 border border-gray-200 dark:border-gray-700">
+                            <select v-model="dtConfig.dt_sort[index]" class="w-full input input-sm">
+                              <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+                                {{ opt.label }}
+                              </option>
+                            </select>
+                          </td>
+                          <td class="px-2 py-1 border border-gray-200 dark:border-gray-700 text-center">
+                            <div class="flex items-center justify-center gap-2 text-primary">
+                              <span
+                                class="drag-handle cursor-move text-gray-400 hover:text-gray-600"
+                                title="Drag to reorder"
+                              >
+                                <Icon name="material-symbols:drag-handle-rounded" size="16" />
+                              </span>
+                              <button
+                                class="text-red-500 hover:text-red-600"
+                                title="Delete"
+                                @click="handleDeleteRow(index)"
+                              >
+                                <Icon name="material-symbols:delete" size="16" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </draggable>
                   </table>
                   <div class="flex justify-end mt-3">
                     <rs-button size="sm" variant="primary" @click="handleAddRow">

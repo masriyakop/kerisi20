@@ -38,6 +38,7 @@ export default defineEventHandler(async (event) => {
       additionalAttribute: body.additionalAttribute || "",
       defaultValue: body.defaultValue || "",
       lookup_queryMapping: body.lookup_queryMapping || "",
+      crudColumn: body.crudColumn || "",
       visible: body.visible !== undefined ? body.visible : 0,
       active: body.active !== undefined ? body.active : 0,
       order: body.order || 1,

@@ -27,6 +27,33 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 
+// Show Lookup Query Mapping info
+const showLookupQueryMappingInfo = () => {
+  $swal.fire({
+    title: "Lookup Query Mapping Format",
+    html: `
+      <div class="text-left space-y-4">
+        <p class="font-semibold mb-2">The data can be in this SQL format (example below):</p>
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+          <div class="mb-2">SELECT lde_value AS label, lde_id AS value FROM lookup_details WHERE lma_code_name='STATUS';</div>
+          <div class="mb-2">SELECT description, code FROM status_table WHERE active=1;</div>
+          <div>SELECT DISTINCT bam_status_cd flc_id, bam_status_cd flc_name FROM status_table WHERE active=1;</div>
+        </div>
+        <p class="font-semibold mt-4 mb-2">OR in Array of JSON (example below):</p>
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+          [<br/>
+          &nbsp;&nbsp;{ "label": "ACTIVE", "value": "1" },<br/>
+          &nbsp;&nbsp;{ "label": "INACTIVE", "value": "0" }<br/>
+          ]
+        </div>
+      </div>
+    `,
+    icon: "info",
+    width: "600px",
+    confirmButtonText: "Got it",
+  });
+};
+
 // Get pageId from sessionStorage (from Page Editor Edit icon) - not exposed in URL
 const pageIdFromStorage = ref(null);
 
@@ -2696,7 +2723,15 @@ watch(() => componentItemForm.value.componentId, (newComponentId) => {
 
             <!-- Lookup Query Mapping -->
             <div class="flex items-start gap-2">
-              <label class="w-32 text-xs font-medium pt-2">Lookup Query Mapping:</label>
+              <div class="w-32 flex items-center gap-1 pt-2">
+                <label class="text-xs font-medium">Lookup Query Mapping:</label>
+                <Icon
+                  name="material-symbols:info-outline"
+                  class="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary"
+                  size="16"
+                  @click="showLookupQueryMappingInfo"
+                />
+              </div>
               <div class="flex-1">
                 <FormKit
                   v-model="componentItemForm.lookup_queryMapping"

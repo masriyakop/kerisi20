@@ -4,7 +4,8 @@
     { "id": 101, "name": "form_TopFilter" },
     { "id": 102, "name": "form_SmartFilter" },
     { "id": 103, "name": "form_PopupModal" },
-    { "id": 104, "name": "datatable" }
+    { "id": 104, "name": "datatable" },
+    { "id": 105, "name": "button" }
   ],
     "ComponentItemType": [
       { "id": 1, "name": "textfield" },
@@ -28,6 +29,16 @@
       { "id": 19, "name": "file" },
       { "id": 20, "name": "label" },
       { "id": 21, "name": "listbox" },
-      { "id": 22, "name": "password" }
+      { "id": 22, "name": "password" },
+      { "id": 23, "name": "button" },
+      { "id": 24, "name": "v-select" },
+      { "id": 25, "name": "mask" },
+      { "id": 26, "name": "rich text editor" },
+      { "id": 27, "name": "quill" },
+      { "id": 28, "name": "ckeditor" },
+      { "id": 29, "name": "tinymce" },
+      { "id": 30, "name": "summernote" },
+      { "id": 31, "name": "codemirror" },
+      { "id": 32, "name": "ace" }
     ]
   }

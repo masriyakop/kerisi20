@@ -121,6 +121,7 @@ export default defineEventHandler(async (event) => {
             pageTitle,
             menu: menu || "",
             status: status === "ACTIVE" || status === "INACTIVE" ? status : "ACTIVE",
+            customized: pageData.customized === true || pageData.customized === 1 ? 1 : 0,
             createdTimestamp: pageData.createdTimestamp || new Date().toISOString(),
             updateTimestamp: pageData.updateTimestamp || null,
           };

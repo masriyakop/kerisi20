@@ -13,6 +13,78 @@ definePageMeta({
 });
 
 const { $swal } = useNuxtApp();
+const route = useRoute();
+
+// Show Lookup Query Mapping info
+const showLookupQueryMappingInfo = () => {
+  $swal.fire({
+    title: "Lookup Query Mapping Format",
+    html: `
+      <div class="text-left space-y-4">
+        <p class="font-semibold mb-2">The data can be in this SQL format (example below):</p>
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+          <div class="mb-2">SELECT lde_value AS label, lde_id AS value FROM lookup_details WHERE lma_code_name='STATUS';</div>
+          <div class="mb-2">SELECT description, code FROM status_table WHERE active=1;</div>
+          <div>SELECT DISTINCT bam_status_cd flc_id, bam_status_cd flc_name FROM status_table WHERE active=1;</div>
+        </div>
+        <p class="font-semibold mt-4 mb-2">OR in Array of JSON (example below):</p>
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+          [<br/>
+          &nbsp;&nbsp;{ "label": "ACTIVE", "value": "1" },<br/>
+          &nbsp;&nbsp;{ "label": "INACTIVE", "value": "0" }<br/>
+          ]
+        </div>
+        <p class="font-semibold mt-4 mb-2">Variable Substitution (Cascading Dropdowns):</p>
+        <p class="text-sm text-gray-600 mb-2">Use <code class="bg-gray-200 px-1 rounded">\${FieldName}</code> or <code class="bg-gray-200 px-1 rounded">{FieldName}</code> to create cascading/dependent dropdowns. The variable will be replaced with the selected value from another field.</p>
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+          <div class="mb-2">SELECT oun_code AS value, oun_desc AS label FROM org_unit WHERE fty_fund_type = '\${Fund}';</div>
+          <div class="mb-2">SELECT oun_code AS value, oun_desc AS label FROM org_unit WHERE fty_fund_type = '{Fund}';</div>
+          <div>SELECT ccr_code AS value, ccr_desc AS label FROM costcentre WHERE oun_code = '{PTJ}' AND fty_fund_type = '{Fund}';</div>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">When user selects a Fund, the PTJ dropdown will automatically refresh with filtered options.</p>
+      </div>
+    `,
+    icon: "info",
+    width: "650px",
+    confirmButtonText: "Got it",
+  });
+};
+
+const showCrudColumnInfo = () => {
+  $swal.fire({
+    title: "CRUD Column Mapping",
+    html: `
+      <div class="text-left space-y-4">
+        <p class="font-semibold mb-2">What is CRUD Column?</p>
+        <p class="text-sm text-gray-600 mb-2">CRUD Column allows you to explicitly specify which database model and field this form item should map to when creating or updating records.</p>
+        
+        <p class="font-semibold mt-4 mb-2">Format:</p>
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+          model_name.field_name
+        </div>
+        
+        <p class="font-semibold mt-4 mb-2">Examples:</p>
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+          <div class="mb-2">structure_budget.sbg_status</div>
+          <div class="mb-2">fund_type.fty_fund_type</div>
+          <div>organization_unit.oun_code</div>
+        </div>
+        
+        <p class="font-semibold mt-4 mb-2">When to use:</p>
+        <ul class="text-sm text-gray-600 list-disc pl-5 space-y-1">
+          <li>When the form field name doesn't match the database column name</li>
+          <li>When the auto-detection fails to find the correct mapping</li>
+          <li>When you want to explicitly control the CRUD mapping</li>
+        </ul>
+        
+        <p class="text-xs text-gray-500 mt-4">Leave as "Auto Detect" if the Page Generator should try to automatically match the field name to database columns.</p>
+      </div>
+    `,
+    icon: "info",
+    width: "600px",
+    confirmButtonText: "Got it",
+  });
+};
 
 const userStore = useUserStore();
 const pageBreadcrumbText = "Dashboard > Page Editor > Page Creator";
@@ -41,6 +113,7 @@ const pageForm = ref({
   pageTitle: "",
   menu: "",
   status: "ACTIVE",
+  customized: false,
 });
 const components = ref([]);
 const componentsLoading = ref(false);
@@ -73,9 +146,42 @@ const componentItemForm = ref({
   additionalAttribute: "",
   defaultValue: "",
   lookup_queryMapping: "",
+  crudColumn: "",
   visible: true,
   active: true,
   order: 1,
+});
+
+// Prisma schema options for CRUD Column dropdown
+const prismaSchemaOptions = ref([]);
+const prismaSchemaLoading = ref(false);
+
+// Fetch Prisma schema models and fields for CRUD Column dropdown
+const fetchPrismaSchemaOptions = async () => {
+  if (prismaSchemaOptions.value.length > 0) return; // Already loaded
+  prismaSchemaLoading.value = true;
+  try {
+    const { data } = await useFetch("/api/prisma-schema/models", {
+      method: "GET",
+      initialCache: false,
+    });
+    if (data.value?.statusCode === 200 && data.value?.data?.options) {
+      prismaSchemaOptions.value = data.value.data.options;
+    }
+  } catch (error) {
+    console.error("Error fetching Prisma schema:", error);
+  } finally {
+    prismaSchemaLoading.value = false;
+  }
+};
+
+// Get parent component type for the currently editing component item
+const editingComponentItemParentType = computed(() => {
+  if (!componentItemForm.value.componentId) return null;
+  const component = componentListFull.value.find(
+    (c) => c.id === componentItemForm.value.componentId
+  );
+  return component?.type || null;
 });
 
 // Component Item Type options from lookup.json
@@ -103,6 +209,10 @@ const componentForm = ref({
   order: 1,
   queryMapping: "",
 });
+
+// Inline component items for Edit Component modal (non-datatable types)
+const modalComponentItems = ref([]);
+const modalComponentItemsLoading = ref(false);
 
 const filteredPages = computed(() => {
   let result = pages.value;
@@ -268,9 +378,69 @@ const fetchPages = async () => {
         title: item.pageTitle,
         menu: item.menu,
         status: item.status,
+        customized: item.customized,
       }));
+      
+      // Check for pageId in query params (from Datatable Editor back button) - takes priority
+      const queryPageId = route.query.pageId ? parseInt(route.query.pageId) : null;
+      if (queryPageId) {
+        const page = pages.value.find((p) => parseInt(p.id) === queryPageId);
+        if (page) {
+          selectedPage.value = page;
+          // Save to sessionStorage when restored from query params
+          if (process.client) {
+            sessionStorage.setItem("pageCreatorSelectedPageId", page.id.toString());
+          }
+          await fetchComponents(page.id);
+          // Restore component selection after components are loaded
+          await nextTick();
+          restoreComponentSelection();
+          return;
+        }
+      }
+      
+      // Check for menu in query params (from Page Editor dropdown) - second priority
+      const queryMenu = route.query.menu ? decodeURIComponent(route.query.menu) : null;
+      if (queryMenu) {
+        const page = pages.value.find((p) => p.menu === queryMenu);
+        if (page) {
+          selectedPage.value = page;
+          // Save to sessionStorage when restored from query params
+          if (process.client) {
+            sessionStorage.setItem("pageCreatorSelectedPageId", page.id.toString());
+          }
+          await fetchComponents(page.id);
+          // Restore component selection after components are loaded
+          await nextTick();
+          restoreComponentSelection();
+          return;
+        }
+      }
+      
+      // If no query param, check sessionStorage for last selected page
+      if (!selectedPage.value && process.client) {
+        const savedPageId = sessionStorage.getItem("pageCreatorSelectedPageId");
+        if (savedPageId) {
+          const savedPageIdNum = parseInt(savedPageId);
+          const page = pages.value.find((p) => parseInt(p.id) === savedPageIdNum);
+          if (page) {
+            selectedPage.value = page;
+            await fetchComponents(page.id);
+            // Restore component selection after components are loaded
+            await nextTick();
+            restoreComponentSelection();
+            return;
+          }
+        }
+      }
+      
+      // If no saved selection, select first page
       if (!selectedPage.value && pages.value.length > 0) {
         selectedPage.value = pages.value[0];
+        // Save first page to sessionStorage
+        if (process.client) {
+          sessionStorage.setItem("pageCreatorSelectedPageId", pages.value[0].id.toString());
+        }
         fetchComponents(pages.value[0].id);
       }
     } else {
@@ -291,6 +461,25 @@ const fetchPages = async () => {
     components.value = [];
   } finally {
     loading.value = false;
+  }
+};
+
+// Restore component selection from query parameters (expand the component)
+const restoreComponentSelection = () => {
+  const queryComponentId = route.query.componentId ? parseInt(route.query.componentId) : null;
+  if (queryComponentId && components.value.length > 0) {
+    // Remove component ID from collapsedIds to expand it
+    const newCollapsedIds = new Set(collapsedIds.value);
+    newCollapsedIds.delete(queryComponentId);
+    collapsedIds.value = newCollapsedIds;
+    
+    // Scroll to the component if possible (optional enhancement)
+    nextTick(() => {
+      const componentElement = document.querySelector(`[data-component-id="${queryComponentId}"]`);
+      if (componentElement) {
+        componentElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
   }
 };
 
@@ -343,11 +532,29 @@ const fetchComponentItems = async (pageId) => {
     if (data.value?.statusCode === 200) {
       const items = data.value.data || [];
       const grouped = {};
+
+      // Group items by componentId
       items.forEach((item) => {
         const compId = item.componentId;
         if (!grouped[compId]) grouped[compId] = [];
         grouped[compId].push(item);
       });
+
+      // Sort and normalize order within each component
+      Object.keys(grouped).forEach((compId) => {
+        const arr = grouped[compId];
+        // Sort by existing order (fallback 0)
+        arr.sort((a, b) => {
+          const orderA = a.order ?? 0;
+          const orderB = b.order ?? 0;
+          return Number(orderA) - Number(orderB);
+        });
+        // Reassign order to 1..N to avoid gaps
+        arr.forEach((item, index) => {
+          item.order = index + 1;
+        });
+      });
+
       componentItemsByComponentId.value = grouped;
     } else {
       componentItemsByComponentId.value = {};
@@ -385,6 +592,10 @@ const fetchComponents = async (pageId) => {
     }
     // Load component items separately; errors are handled inside fetchComponentItems
     await fetchComponentItems(pageId);
+    
+    // Restore component selection if coming from Datatable Editor
+    await nextTick();
+    restoreComponentSelection();
   } catch (error) {
     console.error("Error fetching components:", error);
     components.value = [];
@@ -396,6 +607,10 @@ const fetchComponents = async (pageId) => {
 
 const handleSelectPage = (page) => {
   selectedPage.value = page;
+  // Save selected page to sessionStorage for persistence
+  if (process.client && page?.id) {
+    sessionStorage.setItem("pageCreatorSelectedPageId", page.id.toString());
+  }
   fetchComponents(page?.id);
 };
 
@@ -466,6 +681,7 @@ const handlePageView = (pageId) => {
     pageTitle: page.title || "",
     menu: page.menu || "",
     status: page.status || "ACTIVE",
+    customized: page.customized === 1 || page.customized === true,
   };
   showPageModal.value = true;
 };
@@ -491,10 +707,243 @@ const handlePageEdit = (pageId) => {
     pageTitle: page.title || "",
     menu: page.menu || "",
     status: page.status || "ACTIVE",
+    customized: page.customized === 1 || page.customized === true,
   };
   // Refresh available menus (exclude current page ID so its menu is available)
   fetchAvailableMenus(page.id);
   showPageModal.value = true;
+};
+
+// Duplicate function - duplicates page with all components and component items
+const handlePageDuplicate = async (pageId) => {
+  closeContextMenu();
+  
+  const page = pages.value.find((p) => p.id === pageId);
+  if (!page) {
+    $swal.fire({
+      title: "Error",
+      text: "Page not found",
+      icon: "error",
+    });
+    return;
+  }
+
+  // Show confirmation dialog
+  const result = await $swal.fire({
+    title: "Duplicate Page?",
+    text: `Do you want to duplicate page "${page.pageTitle || page.title}"? This will create a copy with all its components and component items.`,
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, duplicate it!",
+    cancelButtonText: "Cancel",
+  });
+
+  if (!result.isConfirmed) {
+    return; // User cancelled
+  }
+
+  try {
+    loading.value = true;
+
+    const originalPageTitle = page.pageTitle || page.title;
+    
+    // Generate unique page title
+    let newPageTitle = `${originalPageTitle}_1`;
+    let suffix = 1;
+    
+    // Check if title with _1, _2, etc. already exists
+    while (pages.value.some(p => (p.pageTitle || p.title) === newPageTitle)) {
+      suffix++;
+      newPageTitle = `${originalPageTitle}_${suffix}`;
+    }
+
+    // Create new page
+    const newPageData = {
+      pageTitle: newPageTitle,
+      menu: "", // Leave menu empty to avoid conflicts
+      status: page.status || "ACTIVE",
+    };
+
+    const pageResponse = await useFetch("/api/page-editor", {
+      method: "POST",
+      body: newPageData,
+      initialCache: false,
+    });
+
+    if (pageResponse.data.value?.statusCode !== 200) {
+      $swal.fire({
+        title: "Error",
+        text: pageResponse.data.value?.message || "Failed to duplicate page",
+        icon: "error",
+      });
+      return;
+    }
+
+    // The API returns all pages, find the new one by title
+    // Refresh pages list first to get the latest data
+    await fetchPages();
+    const newPage = pages.value.find(p => (p.pageTitle || p.title) === newPageTitle);
+    if (!newPage) {
+      $swal.fire({
+        title: "Error",
+        text: "Failed to retrieve duplicated page",
+        icon: "error",
+      });
+      return;
+    }
+
+    const newPageId = newPage.id;
+
+    // Fetch all components for the original page
+    const { data: componentsData } = await useFetch("/api/component-editor", {
+      method: "GET",
+      query: { pageId, raw: true },
+      initialCache: false,
+    });
+
+    if (componentsData.value?.statusCode === 200) {
+      const originalComponents = componentsData.value.data || [];
+
+      // Duplicate each component
+      for (const originalComponent of originalComponents) {
+        // Generate unique component name
+        let newComponentName = `${originalComponent.name}_1`;
+        let componentSuffix = 1;
+        
+        // Check existing components for the new page (we'll fetch them after creating)
+        const existingComponents = originalComponents.filter(c => c.name === newComponentName);
+        while (existingComponents.some(c => c.name === newComponentName)) {
+          componentSuffix++;
+          newComponentName = `${originalComponent.name}_${componentSuffix}`;
+        }
+
+        // Parse and clean componentData to remove API-related fields (dt_ajax)
+        let cleanedComponentData = "";
+        if (originalComponent.componentData) {
+          try {
+            const parsedData = typeof originalComponent.componentData === "string" 
+              ? JSON.parse(originalComponent.componentData) 
+              : originalComponent.componentData;
+            
+            // Remove dt_ajax field (API path) from componentData
+            const cleanedData = { ...parsedData };
+            if (cleanedData.dt_ajax !== undefined) {
+              delete cleanedData.dt_ajax;
+            }
+            
+            cleanedComponentData = JSON.stringify(cleanedData);
+          } catch (error) {
+            console.error("Error parsing componentData during page duplication:", error);
+            // If parsing fails, use empty string
+            cleanedComponentData = "";
+          }
+        }
+
+        // Create new component
+        const newComponentData = {
+          pageId: newPageId,
+          title: `${originalComponent.title}_${componentSuffix}`,
+          name: newComponentName,
+          cssClass: originalComponent.cssClass || "",
+          type: originalComponent.type || "custom",
+          collapseEnable: originalComponent.collapseEnable || 0,
+          collapseByDefault: originalComponent.collapseByDefault || 0,
+          visible: originalComponent.visible !== undefined ? originalComponent.visible : 1,
+          active: originalComponent.active !== undefined ? originalComponent.active : 1,
+          order: originalComponent.order || 1,
+          queryMapping: originalComponent.queryMapping || "",
+          componentData: cleanedComponentData,
+        };
+
+        const componentResponse = await useFetch("/api/component-editor", {
+          method: "POST",
+          body: newComponentData,
+          initialCache: false,
+        });
+
+        if (componentResponse.data.value?.statusCode === 200) {
+          const newComponent = componentResponse.data.value.data;
+          const newComponentId = newComponent.id;
+
+          // Fetch all component items for the original component
+          const { data: itemsData } = await useFetch("/api/component-item-editor", {
+            method: "GET",
+            query: { componentId: originalComponent.id },
+            initialCache: false,
+          });
+
+          if (itemsData.value?.statusCode === 200) {
+            const originalItems = itemsData.value.data || [];
+
+            // Duplicate each component item
+            for (let i = 0; i < originalItems.length; i++) {
+              const originalItem = originalItems[i];
+              
+              // Fetch full component item data to get all fields
+              let fullItemData = originalItem;
+              try {
+                const { data: itemData } = await useFetch(`/api/component-item-editor?id=${originalItem.id}`, {
+                  method: "GET",
+                  initialCache: false,
+                });
+                
+                if (itemData.value?.statusCode === 200 && itemData.value?.data) {
+                  fullItemData = itemData.value.data;
+                }
+              } catch (error) {
+                console.error(`Error fetching full data for component item ${originalItem.id}:`, error);
+              }
+
+              const newItemData = {
+                pageId: newPageId,
+                componentId: newComponentId,
+                name: fullItemData.name || "",
+                title: fullItemData.title || "",
+                component: newComponentName,
+                type: fullItemData.type || "",
+                cssClass: fullItemData.cssClass || "",
+                additionalAttribute: fullItemData.additionalAttribute || "",
+                defaultValue: fullItemData.defaultValue || "",
+                lookup_queryMapping: fullItemData.lookup_queryMapping || "",
+                visible: fullItemData.visible !== undefined ? fullItemData.visible : 1,
+                active: fullItemData.active !== undefined ? fullItemData.active : 1,
+                order: fullItemData.order || (i + 1),
+              };
+
+              await useFetch("/api/component-item-editor", {
+                method: "POST",
+                body: newItemData,
+                initialCache: false,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    $swal.fire({
+      title: "Duplicated!",
+      text: `Page "${originalPageTitle}" has been duplicated as "${newPageTitle}".`,
+      icon: "success",
+      timer: 2000,
+      showConfirmButton: false,
+    });
+
+    // Refresh data from API
+    await fetchPages();
+    await fetchAvailableMenus();
+  } catch (error) {
+    console.error("Error duplicating page:", error);
+    $swal.fire({
+      title: "Error",
+      text: "An error occurred while duplicating page",
+      icon: "error",
+    });
+  } finally {
+    loading.value = false;
+  }
 };
 
 // Delete function - shows confirmation and deletes the page
@@ -574,6 +1023,18 @@ const handlePageDelete = async (pageId) => {
           selectedPage.value = null;
           components.value = [];
           componentItemsByComponentId.value = {};
+          // Clear sessionStorage since the selected page no longer exists
+          if (process.client) {
+            sessionStorage.removeItem("pageCreatorSelectedPageId");
+          }
+          // Select first available page if any exist
+          if (pages.value.length > 0) {
+            selectedPage.value = pages.value[0];
+            if (process.client) {
+              sessionStorage.setItem("pageCreatorSelectedPageId", pages.value[0].id.toString());
+            }
+            await fetchComponents(pages.value[0].id);
+          }
         }
       } else {
         $swal.fire({
@@ -609,16 +1070,163 @@ const handleOpenComponentEditor = () => {
   navigateTo("/pageeditor/component-editor");
 };
 
-// Page Generator handler - functionality to be implemented later
-const handlePageGenerator = () => {
-  if (!selectedPage.value) return;
-  // TODO: Implement Page Generator functionality
-  console.log("Page Generator clicked for page:", selectedPage.value.id);
-  $swal.fire({
-    title: "Page Generator",
-    text: "Page Generator functionality will be implemented",
-    icon: "info",
+// Page Generator handler
+const handlePageGenerator = async () => {
+  if (!selectedPage.value) {
+    $swal.fire({
+      title: "Warning",
+      text: "Please select a page first",
+      icon: "warning",
+    });
+    return;
+  }
+
+  // Validation checks before proceeding
+  const validationErrors = [];
+
+  // 1. Check if Menu is defined
+  if (!selectedPage.value.menu || selectedPage.value.menu.trim() === "") {
+    validationErrors.push("Menu is not defined for this page");
+  }
+
+  // 2. Check if Page status is Active
+  if (selectedPage.value.status !== "ACTIVE") {
+    validationErrors.push("Page status must be ACTIVE");
+  }
+
+  // 3. Check if Page is marked as Customized (cannot regenerate customized pages)
+  if (selectedPage.value.customized === 1 || selectedPage.value.customized === true) {
+    $swal.fire({
+      title: "Cannot Generate",
+      html: `<div class="text-left">
+        <p class="mb-2">This page is marked as <strong>Customized</strong>.</p>
+        <p class="text-sm text-gray-600">Customized pages have been manually edited outside of the Page Generator and cannot be regenerated to preserve those changes.</p>
+        <p class="text-sm text-gray-600 mt-2">To regenerate this page, uncheck the "Customized" option in the Edit Page popup first.</p>
+      </div>`,
+      icon: "warning",
+      confirmButtonText: "OK",
+    });
+    return;
+  }
+
+  // 4. Check if the Page has at least 1 active component
+  const activeComponents = components.value.filter(c => c.active !== 0 && c.active !== false);
+  if (activeComponents.length === 0) {
+    validationErrors.push("Page must have at least 1 active component");
+  }
+
+  // 5. Check datatable components have Query Mapping
+  const datatableComponents = activeComponents.filter(c => c.type === "datatable");
+  const datatablesWithoutQueryMapping = datatableComponents.filter(
+    c => !c.queryMapping || c.queryMapping.trim() === ""
+  );
+  if (datatablesWithoutQueryMapping.length > 0) {
+    const componentNames = datatablesWithoutQueryMapping.map(c => c.name || c.title).join(", ");
+    validationErrors.push(`Datatable component(s) missing Query Mapping: ${componentNames}`);
+  }
+
+  // 6. Check component items (dropdown, radio, checkbox, listbox) have Lookup Query Mapping
+  // Fetch all component items for active components
+  const componentItemErrors = [];
+  for (const component of activeComponents) {
+    const componentItems = componentItemsByComponentId.value[component.id] || [];
+    
+    for (const item of componentItems) {
+      const itemType = (item.type || "").toLowerCase();
+      const requiresLookup = ["dropdown", "radio", "checkbox", "listbox"].includes(itemType);
+      
+      if (requiresLookup) {
+        // Fetch full item data to check lookup_queryMapping
+        let fullItemData = item;
+        try {
+          const { data: itemData } = await useFetch(`/api/component-item-editor?id=${item.id}`, {
+            method: "GET",
+            initialCache: false,
+          });
+          
+          if (itemData.value?.statusCode === 200 && itemData.value?.data) {
+            fullItemData = itemData.value.data;
+          }
+        } catch (error) {
+          console.error(`Error fetching full data for component item ${item.id}:`, error);
+        }
+
+        if (!fullItemData.lookup_queryMapping || fullItemData.lookup_queryMapping.trim() === "") {
+          const componentName = component.name || component.title;
+          const itemName = fullItemData.name || fullItemData.title || "Unnamed";
+          componentItemErrors.push(`Component "${componentName}" - Item "${itemName}" (${itemType}) is missing Lookup Query Mapping`);
+        }
+      }
+    }
+  }
+
+  if (componentItemErrors.length > 0) {
+    validationErrors.push(...componentItemErrors);
+  }
+
+  // Show validation errors if any
+  if (validationErrors.length > 0) {
+    $swal.fire({
+      title: "Validation Failed",
+      html: `<div class="text-left"><p class="mb-2 font-semibold">Please fix the following issues:</p><ul class="list-disc list-inside space-y-1">${validationErrors.map(err => `<li>${err}</li>`).join("")}</ul></div>`,
+      icon: "error",
+      confirmButtonText: "OK",
+    });
+    return;
+  }
+
+  // All validations passed, proceed with confirmation
+  const result = await $swal.fire({
+    title: "Generate Page?",
+    text: `This will generate API endpoints and page file for "${selectedPage.value.title}". Continue?`,
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Yes, Generate",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#6c757d",
   });
+  
+  if (!result.isConfirmed) return;
+  
+  try {
+    loading.value = true;
+    
+    const response = await useFetch("/api/page-generator", {
+      method: "POST",
+      body: {
+        pageId: selectedPage.value.id,
+      },
+      initialCache: false,
+    });
+    
+    if (response.data.value?.statusCode === 200) {
+      $swal.fire({
+        title: "Success",
+        text: response.data.value.message || "Page generated successfully",
+        icon: "success",
+        timer: 3000,
+      });
+      
+      // Refresh components to get updated dt_ajax values
+      await fetchComponents(selectedPage.value.id);
+    } else {
+      $swal.fire({
+        title: "Error",
+        text: response.data.value?.message || "Failed to generate page",
+        icon: "error",
+      });
+    }
+  } catch (error) {
+    console.error("Error generating page:", error);
+    $swal.fire({
+      title: "Error",
+      text: "An error occurred while generating the page",
+      icon: "error",
+    });
+  } finally {
+    loading.value = false;
+  }
 };
 
 const handleViewPage = () => {
@@ -712,6 +1320,11 @@ const handleEditComponent = async (component) => {
       await loadComponentTypes();
     }
     
+    // Ensure componentItemTypeOptions is loaded (for inline table)
+    if (componentItemTypeOptions.value.length === 0) {
+      await loadComponentItemTypes();
+    }
+    
     isEditMode.value = true;
     isViewMode.value = false;
     editingId.value = component.id;
@@ -736,6 +1349,41 @@ const handleEditComponent = async (component) => {
         order: fullComponent.order || 1,
         queryMapping: fullComponent.queryMapping || "",
       };
+      
+      // Load component items for inline editing (non-datatable types only)
+      modalComponentItems.value = [];
+      if (fullComponent.type !== "datatable") {
+        modalComponentItemsLoading.value = true;
+        try {
+          // Get component items from existing cache or fetch fresh
+          const cachedItems = componentItemsByComponentId.value[component.id] || [];
+          if (cachedItems.length > 0) {
+            // Fetch full data for each item to get all fields
+            const fullItems = await Promise.all(
+              cachedItems.map(async (item) => {
+                try {
+                  const { data: itemData } = await useFetch(`/api/component-item-editor?id=${item.id}`, {
+                    method: "GET",
+                    initialCache: false,
+                  });
+                  if (itemData.value?.statusCode === 200 && itemData.value?.data) {
+                    return itemData.value.data;
+                  }
+                  return item;
+                } catch {
+                  return item;
+                }
+              })
+            );
+            modalComponentItems.value = fullItems.sort((a, b) => (a.order || 0) - (b.order || 0));
+          }
+        } catch (error) {
+          console.error("Error loading component items for modal:", error);
+        } finally {
+          modalComponentItemsLoading.value = false;
+        }
+      }
+      
       showComponentModal.value = true;
     } else {
       $swal.fire({
@@ -819,6 +1467,7 @@ const handleSaveComponent = async () => {
       
       // Reset form and close modal
       showComponentModal.value = false;
+      modalComponentItems.value = [];
       componentForm.value = {
         title: "",
         name: "",
@@ -855,6 +1504,7 @@ const handleCancelComponent = () => {
   showComponentModal.value = false;
   isViewMode.value = false;
   isEditMode.value = false;
+  modalComponentItems.value = [];
   componentForm.value = {
     title: "",
     name: "",
@@ -867,6 +1517,217 @@ const handleCancelComponent = () => {
     order: 1,
     queryMapping: "",
   };
+};
+
+// Update component item inline from modal datatable
+const handleUpdateModalComponentItem = async (item, field, value) => {
+  if (!item?.id) return;
+  
+  // Update local state immediately for responsive UI
+  const itemIndex = modalComponentItems.value.findIndex(i => i.id === item.id);
+  if (itemIndex !== -1) {
+    modalComponentItems.value[itemIndex][field] = value;
+  }
+  
+  // Prepare update body
+  const updateBody = {
+    name: item.name || "",
+    title: item.title || "",
+    component: item.component || "",
+    componentId: item.componentId || editingId.value,
+    type: field === "type" ? value : (item.type || ""),
+    cssClass: item.cssClass || "",
+    additionalAttribute: item.additionalAttribute || "",
+    defaultValue: item.defaultValue || "",
+    lookup_queryMapping: item.lookup_queryMapping || "",
+    visible: field === "visible" ? (value ? 1 : 0) : (item.visible === 1 || item.visible === true ? 1 : 0),
+    active: field === "active" ? (value ? 1 : 0) : (item.active === 1 || item.active === true ? 1 : 0),
+    order: item.order || 1,
+  };
+  
+  // Override specific field
+  if (field === "name") updateBody.name = value;
+  if (field === "title") updateBody.title = value;
+  
+  try {
+    const { data } = await useFetch(`/api/component-item-editor/${item.id}`, {
+      method: "PUT",
+      body: updateBody,
+      initialCache: false,
+    });
+    
+    if (data.value?.statusCode === 200) {
+      // Refresh the main component items cache
+      if (selectedPage.value?.id) {
+        await fetchComponentItems(selectedPage.value.id);
+      }
+    } else {
+      console.error("Failed to update component item:", data.value?.message);
+    }
+  } catch (error) {
+    console.error("Error updating component item:", error);
+  }
+};
+
+// Add new component item from modal inline table
+const handleAddModalComponentItem = async () => {
+  if (!editingId.value || !selectedPage.value?.id) return;
+  
+  // Calculate next order number
+  const maxOrder = modalComponentItems.value.length > 0 
+    ? Math.max(...modalComponentItems.value.map(item => item.order || 0)) 
+    : 0;
+  
+  // Get component name from componentForm
+  const componentName = componentForm.value.name || "";
+  
+  try {
+    const newItemData = {
+      pageId: selectedPage.value.id,
+      name: "",
+      title: "",
+      component: componentName,
+      componentId: editingId.value,
+      type: "textfield",
+      cssClass: "",
+      additionalAttribute: "",
+      defaultValue: "",
+      lookup_queryMapping: "",
+      visible: 1,
+      active: 1,
+      order: maxOrder + 1,
+    };
+    
+    const { data } = await useFetch("/api/component-item-editor", {
+      method: "POST",
+      body: newItemData,
+      initialCache: false,
+    });
+    
+    if (data.value?.statusCode === 200) {
+      // Add the new item to the modal list
+      const newItem = data.value.data || { ...newItemData, id: Date.now() };
+      modalComponentItems.value.push(newItem);
+      
+      // Refresh the main component items cache
+      await fetchComponentItems(selectedPage.value.id);
+    } else {
+      console.error("Failed to add component item:", data.value?.message);
+      $swal.fire({
+        title: "Error",
+        text: data.value?.message || "Failed to add component item",
+        icon: "error",
+      });
+    }
+  } catch (error) {
+    console.error("Error adding component item:", error);
+    $swal.fire({
+      title: "Error",
+      text: "An error occurred while adding component item",
+      icon: "error",
+    });
+  }
+};
+
+// Delete component item from modal inline table
+const handleDeleteModalComponentItem = async (item) => {
+  if (!item?.id) return;
+  
+  const result = await $swal.fire({
+    title: "Delete Component Item?",
+    text: `Are you sure you want to delete "${item.name || item.title || 'this item'}"?`,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#d33",
+    cancelButtonColor: "#3085d6",
+    confirmButtonText: "Yes, delete it",
+    cancelButtonText: "Cancel",
+  });
+  
+  if (result.isConfirmed) {
+    try {
+      const { data } = await useFetch(`/api/component-item-editor/${item.id}`, {
+        method: "DELETE",
+        initialCache: false,
+      });
+      
+      if (data.value?.statusCode === 200) {
+        // Remove from modal list
+        modalComponentItems.value = modalComponentItems.value.filter(i => i.id !== item.id);
+        
+        // Refresh the main component items cache
+        if (selectedPage.value?.id) {
+          await fetchComponentItems(selectedPage.value.id);
+        }
+        
+        $swal.fire({
+          title: "Deleted",
+          text: "Component item deleted successfully",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      } else {
+        $swal.fire({
+          title: "Error",
+          text: data.value?.message || "Failed to delete component item",
+          icon: "error",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting component item:", error);
+      $swal.fire({
+        title: "Error",
+        text: "An error occurred while deleting component item",
+        icon: "error",
+      });
+    }
+  }
+};
+
+// Handle reorder of component items via drag in modal
+const handleModalComponentItemReorder = async (event) => {
+  if (!event.moved) return;
+  
+  // Update order values in local state
+  modalComponentItems.value.forEach((item, index) => {
+    item.order = index + 1;
+  });
+  
+  try {
+    // Persist order changes to backend
+    const updatePromises = modalComponentItems.value.map((item, index) => {
+      if (!item.id) return Promise.resolve();
+      
+      return useFetch(`/api/component-item-editor/${item.id}`, {
+        method: "PUT",
+        body: {
+          name: item.name || "",
+          title: item.title || "",
+          component: item.component || "",
+          componentId: item.componentId || editingId.value,
+          type: item.type || "",
+          cssClass: item.cssClass || "",
+          additionalAttribute: item.additionalAttribute || "",
+          defaultValue: item.defaultValue || "",
+          lookup_queryMapping: item.lookup_queryMapping || "",
+          visible: item.visible === 1 || item.visible === true ? 1 : 0,
+          active: item.active === 1 || item.active === true ? 1 : 0,
+          order: index + 1,
+        },
+        initialCache: false,
+      });
+    });
+    
+    await Promise.all(updatePromises);
+    
+    // Refresh the main component items cache
+    if (selectedPage.value?.id) {
+      await fetchComponentItems(selectedPage.value.id);
+    }
+  } catch (error) {
+    console.error("Error updating component item order:", error);
+  }
 };
 
 // Get available components for selected page (for component item dropdown)
@@ -975,10 +1836,15 @@ const handleViewComponentItem = async (item) => {
         additionalAttribute: fullComponentItem.additionalAttribute || "",
         defaultValue: fullComponentItem.defaultValue || "",
         lookup_queryMapping: fullComponentItem.lookup_queryMapping || "",
+        crudColumn: fullComponentItem.crudColumn || "",
         visible: fullComponentItem.visible === 1 || fullComponentItem.visible === true,
         active: fullComponentItem.active === 1 || fullComponentItem.active === true,
         order: fullComponentItem.order || 1,
       };
+      
+      // Fetch Prisma schema options for CRUD Column dropdown (for viewing)
+      fetchPrismaSchemaOptions();
+      
       showComponentItemModal.value = true;
     } else {
       $swal.fire({
@@ -1038,10 +1904,15 @@ const handleEditComponentItem = async (item) => {
         additionalAttribute: fullComponentItem.additionalAttribute || "",
         defaultValue: fullComponentItem.defaultValue || "",
         lookup_queryMapping: fullComponentItem.lookup_queryMapping || "",
+        crudColumn: fullComponentItem.crudColumn || "",
         visible: fullComponentItem.visible === 1 || fullComponentItem.visible === true,
         active: fullComponentItem.active === 1 || fullComponentItem.active === true,
         order: fullComponentItem.order || 1,
       };
+      
+      // Fetch Prisma schema options for CRUD Column dropdown
+      fetchPrismaSchemaOptions();
+      
       showComponentItemModal.value = true;
     } else {
       $swal.fire({
@@ -1133,6 +2004,7 @@ const handleSaveComponentItem = async () => {
       additionalAttribute: componentItemForm.value.additionalAttribute || "",
       defaultValue: componentItemForm.value.defaultValue || "",
       lookup_queryMapping: componentItemForm.value.lookup_queryMapping || "",
+      crudColumn: componentItemForm.value.crudColumn || "",
       visible: componentItemForm.value.visible ? 1 : 0,
       active: componentItemForm.value.active ? 1 : 0,
       order: componentItemForm.value.order || 1,
@@ -1179,6 +2051,7 @@ const handleSaveComponentItem = async () => {
         additionalAttribute: "",
         defaultValue: "",
         lookup_queryMapping: "",
+        crudColumn: "",
         visible: true,
         active: true,
         order: 1,
@@ -1217,6 +2090,7 @@ const handleCancelComponentItem = () => {
     additionalAttribute: "",
     defaultValue: "",
     lookup_queryMapping: "",
+    crudColumn: "",
     visible: true,
     active: true,
     order: 1,
@@ -1232,6 +2106,7 @@ const handleAddPage = () => {
     pageTitle: "",
     menu: "",
     status: "ACTIVE",
+    customized: false,
   };
   // Refresh available menus
   fetchAvailableMenus();
@@ -1289,6 +2164,7 @@ const handleSavePage = async () => {
         pageTitle: "",
         menu: "",
         status: "ACTIVE",
+        customized: false,
       };
     } else {
       $swal.fire({
@@ -1318,6 +2194,7 @@ const handleCancelPage = () => {
     pageTitle: "",
     menu: "",
     status: "ACTIVE",
+    customized: false,
   };
 };
 
@@ -1424,10 +2301,76 @@ const getDatatableItems = (component) => {
     if (!componentData) return [];
     
     const parsed = typeof componentData === "string" ? JSON.parse(componentData) : componentData;
-    return parsed.dt_bm || [];
+    const dt_bm = parsed.dt_bm || [];
+    const dt_bi = parsed.dt_bi || [];
+    
+    // Return array of objects with both BM and BI titles
+    return dt_bm.map((bm, index) => ({
+      bm: bm,
+      bi: dt_bi[index] || "",
+      index: index
+    }));
   } catch (error) {
     console.error("Error parsing componentData for datatable:", error);
     return [];
+  }
+};
+
+// Handle drag & drop reordering of regular component items within a component panel
+const handleComponentItemDragEnd = async (componentId, newItems) => {
+  if (!componentId || !Array.isArray(newItems) || newItems.length === 0) return;
+
+  // Renumber orders locally
+  newItems.forEach((item, index) => {
+    item.order = index + 1;
+  });
+
+  // Update local state map
+  componentItemsByComponentId.value = {
+    ...componentItemsByComponentId.value,
+    [componentId]: newItems,
+  };
+
+  try {
+    // Persist to backend: update each item with its new order
+    const updatePromises = newItems.map((item, index) => {
+      if (!item.id) return Promise.resolve();
+
+      const body = {
+        name: item.name || "",
+        title: item.title || "",
+        component: item.component || "",
+        componentId: item.componentId || componentId,
+        type: item.type || "",
+        cssClass: item.cssClass || "",
+        additionalAttribute: item.additionalAttribute || "",
+        defaultValue: item.defaultValue || "",
+        // Preserve lookup_queryMapping - use item value if it exists (including empty string), otherwise use empty string
+        lookup_queryMapping: item.lookup_queryMapping !== undefined ? item.lookup_queryMapping : "",
+        visible: item.visible === 0 || item.visible === false ? 0 : 1,
+        active: item.active === 0 || item.active === false ? 0 : 1,
+        order: index + 1,
+      };
+
+      return useFetch(`/api/component-item-editor/${item.id}`, {
+        method: "PUT",
+        body,
+        initialCache: false,
+      });
+    });
+
+    await Promise.all(updatePromises);
+    
+    // Refresh items to ensure UI is in sync
+    if (selectedPage.value?.id) {
+      await fetchComponentItems(selectedPage.value.id);
+    }
+  } catch (error) {
+    console.error("Error updating component item order:", error);
+    // Reload items to restore consistent state
+    if (selectedPage.value?.id) {
+      fetchComponentItems(selectedPage.value.id);
+    }
   }
 };
 
@@ -1503,6 +2446,190 @@ const handleDeleteComponentItem = async (item) => {
     } finally {
       componentItemsLoading.value = false;
     }
+  }
+};
+
+// Duplicate Component - replicates component and all its items
+const handleDuplicateComponent = async (component) => {
+  if (!selectedPage.value) {
+    $swal.fire({
+      title: "Warning",
+      text: "Please select a page first",
+      icon: "warning",
+    });
+    return;
+  }
+
+  // Show confirmation dialog before duplicating
+  const result = await $swal.fire({
+    title: "Duplicate Component?",
+    text: `Do you want to duplicate component "${component.name || component.title}"? This will create a copy with all its component items.`,
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, duplicate it!",
+    cancelButtonText: "Cancel",
+  });
+
+  if (!result.isConfirmed) {
+    return; // User cancelled
+  }
+
+  try {
+    componentsLoading.value = true;
+
+    // Get all components for the page to find max order and check for existing names
+    const allPageComponents = components.value.filter(c => parseInt(c.pageId) === parseInt(selectedPage.value.id));
+    const maxOrder = allPageComponents.length > 0 
+      ? Math.max(...allPageComponents.map(c => c.order || 0)) 
+      : 0;
+
+    // Generate unique name and title
+    let newName = `${component.name}_1`;
+    let newTitle = `${component.title}_1`;
+    let suffix = 1;
+    
+    // Check if name with _1, _2, etc. already exists
+    while (allPageComponents.some(c => c.name === newName)) {
+      suffix++;
+      newName = `${component.name}_${suffix}`;
+      newTitle = `${component.title}_${suffix}`;
+    }
+
+    // Parse and clean componentData to remove API-related fields
+    let cleanedComponentData = "";
+    if (component.componentData) {
+      try {
+        const parsedData = typeof component.componentData === "string" 
+          ? JSON.parse(component.componentData) 
+          : component.componentData;
+        
+        // Remove dt_ajax field (API path) from componentData
+        const cleanedData = { ...parsedData };
+        if (cleanedData.dt_ajax !== undefined) {
+          delete cleanedData.dt_ajax;
+        }
+        
+        cleanedComponentData = JSON.stringify(cleanedData);
+      } catch (error) {
+        console.error("Error parsing componentData during duplication:", error);
+        // If parsing fails, use empty string
+        cleanedComponentData = "";
+      }
+    }
+
+    // Create new component
+    const newComponentData = {
+      pageId: selectedPage.value.id,
+      title: newTitle,
+      name: newName,
+      cssClass: component.cssClass || "",
+      type: component.type || "custom",
+      collapseEnable: component.collapseEnable || 0,
+      collapseByDefault: component.collapseByDefault || 0,
+      visible: component.visible !== undefined ? component.visible : 1,
+      active: component.active !== undefined ? component.active : 1,
+      order: maxOrder + 1,
+      queryMapping: component.queryMapping || "",
+      componentData: cleanedComponentData,
+    };
+
+    const componentResponse = await useFetch("/api/component-editor", {
+      method: "POST",
+      body: newComponentData,
+      initialCache: false,
+    });
+
+    if (componentResponse.data.value?.statusCode !== 200) {
+      $swal.fire({
+        title: "Error",
+        text: componentResponse.data.value?.message || "Failed to duplicate component",
+        icon: "error",
+      });
+      return;
+    }
+
+    const newComponent = componentResponse.data.value.data;
+    const newComponentId = newComponent.id;
+
+    // Get all component items for the original component
+    const originalItems = componentItemsByComponentId.value[component.id] || [];
+
+    // Duplicate all component items
+    if (originalItems.length > 0) {
+      // Get max order for component items
+      const maxItemOrder = originalItems.length > 0 
+        ? Math.max(...originalItems.map(item => item.order || 0)) 
+        : 0;
+
+      // Create duplicates of all component items
+      for (let i = 0; i < originalItems.length; i++) {
+        const originalItem = originalItems[i];
+        
+        // Fetch full component item data to get all fields (including lookup_queryMapping)
+        let fullItemData = originalItem;
+        try {
+          const { data: itemData } = await useFetch(`/api/component-item-editor?id=${originalItem.id}`, {
+            method: "GET",
+            initialCache: false,
+          });
+          
+          if (itemData.value?.statusCode === 200 && itemData.value?.data) {
+            fullItemData = itemData.value.data;
+          }
+        } catch (error) {
+          console.error(`Error fetching full data for component item ${originalItem.id}:`, error);
+          // Continue with originalItem if fetch fails
+        }
+        
+        const newItemData = {
+          pageId: selectedPage.value.id,
+          componentId: newComponentId,
+          name: fullItemData.name || "",
+          title: fullItemData.title || "",
+          component: newName,
+          type: fullItemData.type || "",
+          cssClass: fullItemData.cssClass || "",
+          additionalAttribute: fullItemData.additionalAttribute || "",
+          defaultValue: fullItemData.defaultValue || "",
+          lookup_queryMapping: fullItemData.lookup_queryMapping || "",
+          visible: fullItemData.visible !== undefined ? fullItemData.visible : 1,
+          active: fullItemData.active !== undefined ? fullItemData.active : 1,
+          order: maxItemOrder + i + 1,
+        };
+
+        const itemResponse = await useFetch("/api/component-item-editor", {
+          method: "POST",
+          body: newItemData,
+          initialCache: false,
+        });
+
+        if (itemResponse.data.value?.statusCode !== 200) {
+          console.error(`Failed to duplicate component item ${fullItemData.name}:`, itemResponse.data.value?.message);
+        }
+      }
+    }
+
+    $swal.fire({
+      title: "Duplicated!",
+      text: `Component "${component.name}" has been duplicated as "${newName}" with ${originalItems.length} item(s).`,
+      icon: "success",
+      timer: 2000,
+      showConfirmButton: false,
+    });
+
+    // Refresh data from API
+    await fetchComponents(selectedPage.value.id);
+  } catch (error) {
+    console.error("Error duplicating component:", error);
+    $swal.fire({
+      title: "Error",
+      text: "An error occurred while duplicating component",
+      icon: "error",
+    });
+  } finally {
+    componentsLoading.value = false;
   }
 };
 
@@ -1724,6 +2851,13 @@ onUnmounted(() => {
                     Edit
                   </button>
                   <button
+                    @click="handlePageDuplicate(contextMenuPageId)"
+                    class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <Icon name="material-symbols:content-copy" size="16" />
+                    Duplicate
+                  </button>
+                  <button
                     @click="handlePageDelete(contextMenuPageId)"
                     class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                   >
@@ -1827,6 +2961,7 @@ onUnmounted(() => {
                         <template #item="{ element: comp, index: idx }">
                           <div
                             :key="comp.id || idx"
+                            :data-component-id="comp.id"
                             class="border rounded-lg bg-white dark:bg-gray-900"
                           >
                         <div
@@ -1887,6 +3022,10 @@ onUnmounted(() => {
                               <Icon name="material-symbols:edit" class="mr-1" size="1rem" />
                               Edit
                             </rs-button>
+                            <rs-button variant="primary" size="sm" @click.stop="handleDuplicateComponent(comp)">
+                              <Icon name="material-symbols:content-copy" class="mr-1" size="1rem" />
+                              Duplicate
+                            </rs-button>
                             <rs-button variant="danger" size="sm" @click.stop="handleDeleteComponent(comp)">
                               <Icon name="material-symbols:delete" class="mr-1" size="1rem" />
                               Delete
@@ -1898,7 +3037,7 @@ onUnmounted(() => {
                           <div class="mt-1 font-semibold">Component Items</div>
                           <div v-if="componentItemsLoading" class="text-gray-500 italic mt-1">Loading items...</div>
                           
-                          <!-- Datatable type: show dt_bm items without icons -->
+                          <!-- Datatable type: show dt_bm items with dt_bi (Title BI) -->
                           <template v-else-if="comp.type === 'datatable'">
                             <ul
                               v-if="getDatatableItems(comp).length > 0"
@@ -1912,7 +3051,10 @@ onUnmounted(() => {
                                 <div class="flex items-center gap-2">
                                   <div class="flex-1">
                                     <div class="text-sm font-medium">
-                                      <span v-html="item"></span>
+                                      <span v-html="item.bi || item.bm"></span>
+                                    </div>
+                                    <div v-if="item.bm && item.bi" class="text-[11px] text-gray-500 mt-0.5">
+                                      Title BM: <span v-html="item.bm"></span>
                                     </div>
                                   </div>
                                 </div>
@@ -1921,67 +3063,101 @@ onUnmounted(() => {
                             <div v-else class="mt-1 text-gray-500 italic">No datatable items found</div>
                           </template>
                           
-                          <!-- Regular component items: show with icons -->
+                          <!-- Regular component items: show with icons + drag to reorder -->
                           <template v-else>
-                            <ul
+                            <draggable
                               v-if="componentItemsByComponentId[comp.id] && componentItemsByComponentId[comp.id].length"
+                              v-model="componentItemsByComponentId[comp.id]"
+                              item-key="id"
+                              handle=".item-drag-handle"
                               class="mt-1 space-y-1"
+                              @end="handleComponentItemDragEnd(comp.id, componentItemsByComponentId[comp.id])"
                             >
-                              <li
-                                v-for="(item, itemIdx) in componentItemsByComponentId[comp.id]"
-                                :key="item.id || itemIdx"
-                                class="p-2 rounded border bg-white dark:bg-gray-800"
-                              >
-                                <div class="flex items-center justify-between gap-2">
-                                  <div class="flex-1">
-                                    <div class="flex items-center gap-2 text-sm font-medium">
-                                      <span>{{ item.title || item.name || `Item ${itemIdx + 1}` }}</span>
-                                      <span v-if="item.type" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px]">
-                                        {{ item.type }}
-                                      </span>
+                              <template #item="{ element: item, index: itemIdx }">
+                                <li
+                                  :key="item.id || itemIdx"
+                                  class="p-2 rounded border bg-white dark:bg-gray-800"
+                                >
+                                  <div class="flex items-center justify-between gap-2">
+                                    <div class="flex-1">
+                                      <div class="flex items-center gap-2 text-sm font-medium flex-wrap">
+                                        <span>{{ item.title || item.name || `Item ${itemIdx + 1}` }}</span>
+                                        <span v-if="item.type" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px]">
+                                          {{ item.type }}
+                                        </span>
+                                        <span
+                                          class="px-2 py-0.5 rounded text-[11px]"
+                                          :class="{
+                                            'bg-green-100 text-green-700': item.active === 1 || item.active === true,
+                                            'bg-gray-200 text-gray-600': item.active === 0 || item.active === false,
+                                          }"
+                                        >
+                                          {{ item.active === 0 || item.active === false ? 'Inactive' : 'Active' }}
+                                        </span>
+                                        <span
+                                          class="px-2 py-0.5 rounded text-[11px]"
+                                          :class="{
+                                            'bg-green-50 text-green-700': item.visible === 1 || item.visible === true,
+                                            'bg-gray-100 text-gray-600': item.visible === 0 || item.visible === false,
+                                          }"
+                                        >
+                                          {{ item.visible === 0 || item.visible === false ? 'Hidden' : 'Visible' }}
+                                        </span>
+                                        <span class="px-2 py-0.5 rounded bg-gray-200 text-gray-700 text-[11px] font-semibold">
+                                          Order: {{ item.order || itemIdx + 1 }}
+                                        </span>
+                                      </div>
+                                      <div v-if="item.name" class="text-[11px] text-gray-500">Name: {{ item.name }}</div>
+                                      <div v-if="item.cssClass" class="text-[11px] text-gray-500">CSS Class: {{ item.cssClass }}</div>
+                                      <div v-if="item.additionalAttribute" class="text-[11px] text-gray-500">Additional Attribute: {{ item.additionalAttribute }}</div>
+                                      <div v-if="item.lookup_queryMapping" class="text-[11px] text-gray-500 truncate max-w-md" :title="item.lookup_queryMapping">Lookup Query Mapping: {{ item.lookup_queryMapping }}</div>
+                                      <div v-if="item.crudColumn" class="text-[11px] text-gray-500">CRUD Column: <span class="font-medium text-blue-600">{{ item.crudColumn }}</span></div>
                                     </div>
-                                    <div v-if="item.name" class="text-[11px] text-gray-500">Name: {{ item.name }}</div>
-                                    <div v-if="item.order" class="text-[11px] text-gray-500">Order: {{ item.order }}</div>
-                                    <div v-if="item.cssClass" class="text-[11px] text-gray-500">Class: {{ item.cssClass }}</div>
+                                    <div class="flex items-center gap-1">
+                                      <span
+                                        class="item-drag-handle cursor-move text-gray-400 hover:text-gray-600"
+                                        title="Drag to reorder"
+                                      >
+                                        <Icon name="material-symbols:drag-handle-rounded" size="18" />
+                                      </span>
+                                      <button
+                                        @click.stop="handleViewComponentItem(item)"
+                                        class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                        title="View"
+                                      >
+                                        <Icon
+                                          name="material-symbols:visibility"
+                                          class="text-gray-600 dark:text-gray-400"
+                                          size="18"
+                                        />
+                                      </button>
+                                      <button
+                                        @click.stop="handleEditComponentItem(item)"
+                                        class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                        title="Edit"
+                                      >
+                                        <Icon
+                                          name="material-symbols:edit"
+                                          class="text-gray-600 dark:text-gray-400"
+                                          size="18"
+                                        />
+                                      </button>
+                                      <button
+                                        @click.stop="handleDeleteComponentItem(item)"
+                                        class="p-1.5 hover:bg-red-100 dark:hover:bg-red-900 rounded"
+                                        title="Delete"
+                                      >
+                                        <Icon
+                                          name="material-symbols:delete"
+                                          class="text-red-600 dark:text-red-400"
+                                          size="18"
+                                        />
+                                      </button>
+                                    </div>
                                   </div>
-                                  <div class="flex items-center gap-1">
-                                    <button
-                                      @click.stop="handleViewComponentItem(item)"
-                                      class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                                      title="View"
-                                    >
-                                      <Icon
-                                        name="material-symbols:visibility"
-                                        class="text-gray-600 dark:text-gray-400"
-                                        size="18"
-                                      />
-                                    </button>
-                                    <button
-                                      @click.stop="handleEditComponentItem(item)"
-                                      class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                                      title="Edit"
-                                    >
-                                      <Icon
-                                        name="material-symbols:edit"
-                                        class="text-gray-600 dark:text-gray-400"
-                                        size="18"
-                                      />
-                                    </button>
-                                    <button
-                                      @click.stop="handleDeleteComponentItem(item)"
-                                      class="p-1.5 hover:bg-red-100 dark:hover:bg-red-900 rounded"
-                                      title="Delete"
-                                    >
-                                      <Icon
-                                        name="material-symbols:delete"
-                                        class="text-red-600 dark:text-red-400"
-                                        size="18"
-                                      />
-                                    </button>
-                                  </div>
-                                </div>
-                              </li>
-                            </ul>
+                                </li>
+                              </template>
+                            </draggable>
                             <div v-else class="mt-1 text-gray-500 italic">No component items found</div>
                             <div class="flex justify-end mt-2">
                               <rs-button
@@ -2183,6 +3359,120 @@ onUnmounted(() => {
                 />
               </div>
             </div>
+
+            <!-- Component Items Inline Table (edit mode, non-datatable types only) -->
+            <div v-if="isEditMode && componentForm.type !== 'datatable'" class="mt-4">
+              <label class="block text-xs font-medium mb-2">Component Items:</label>
+              <div v-if="modalComponentItemsLoading" class="text-center py-4">
+                <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <p class="mt-1 text-gray-500 text-xs">Loading items...</p>
+              </div>
+              <div v-else class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
+                <table class="w-full text-xs">
+                  <thead class="bg-gray-100 dark:bg-gray-800">
+                    <tr>
+                      <th class="px-2 py-1.5 text-left font-medium">Name</th>
+                      <th class="px-2 py-1.5 text-left font-medium">Title</th>
+                      <th class="px-2 py-1.5 text-left font-medium" style="width: 130px;">Type</th>
+                      <th class="px-2 py-1.5 text-center font-medium" style="width: 50px;">Visible</th>
+                      <th class="px-2 py-1.5 text-center font-medium" style="width: 50px;">Active</th>
+                      <th class="px-2 py-1.5 text-center font-medium" style="width: 70px;">Action</th>
+                    </tr>
+                  </thead>
+                  <draggable
+                    v-model="modalComponentItems"
+                    tag="tbody"
+                    handle=".modal-item-drag-handle"
+                    item-key="id"
+                    @change="handleModalComponentItemReorder"
+                  >
+                    <template #item="{ element: item, index }">
+                      <tr class="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900">
+                        <td class="px-2 py-1">
+                          <input
+                            type="text"
+                            :value="item.name"
+                            @change="handleUpdateModalComponentItem(item, 'name', $event.target.value)"
+                            class="w-full px-1.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white dark:bg-gray-800"
+                          />
+                        </td>
+                        <td class="px-2 py-1">
+                          <input
+                            type="text"
+                            :value="item.title"
+                            @change="handleUpdateModalComponentItem(item, 'title', $event.target.value)"
+                            class="w-full px-1.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white dark:bg-gray-800"
+                          />
+                        </td>
+                        <td class="px-2 py-1">
+                          <select
+                            :value="item.type"
+                            @change="handleUpdateModalComponentItem(item, 'type', $event.target.value)"
+                            class="w-full px-1.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white dark:bg-gray-800"
+                          >
+                            <option value="">Select type</option>
+                            <option 
+                              v-for="opt in componentItemTypeOptions" 
+                              :key="opt.value" 
+                              :value="opt.value"
+                            >
+                              {{ opt.label }}
+                            </option>
+                          </select>
+                        </td>
+                        <td class="px-2 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            :checked="item.visible === 1 || item.visible === true"
+                            @change="handleUpdateModalComponentItem(item, 'visible', $event.target.checked)"
+                            class="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                          />
+                        </td>
+                        <td class="px-2 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            :checked="item.active === 1 || item.active === true"
+                            @change="handleUpdateModalComponentItem(item, 'active', $event.target.checked)"
+                            class="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                          />
+                        </td>
+                        <td class="px-2 py-1 text-center">
+                          <div class="flex items-center justify-center gap-1.5">
+                            <span
+                              class="modal-item-drag-handle cursor-move text-gray-400 hover:text-gray-600"
+                              title="Drag to reorder"
+                            >
+                              <Icon name="material-symbols:drag-handle-rounded" size="14" />
+                            </span>
+                            <button
+                              type="button"
+                              class="text-red-500 hover:text-red-600"
+                              title="Delete"
+                              @click="handleDeleteModalComponentItem(item)"
+                            >
+                              <Icon name="material-symbols:delete" size="14" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </template>
+                  </draggable>
+                  <tbody v-if="modalComponentItems.length === 0">
+                    <tr>
+                      <td colspan="6" class="px-2 py-4 text-center text-gray-500 italic border-t border-gray-200 dark:border-gray-700">
+                        No component items found
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="flex justify-end p-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                  <rs-button size="sm" variant="primary" @click="handleAddModalComponentItem">
+                    <Icon name="material-symbols:add" class="mr-1" size="0.875rem" />
+                    Add
+                  </rs-button>
+                </div>
+              </div>
+            </div>
           </div>
         </FormKit>
       </template>
@@ -2328,13 +3618,44 @@ onUnmounted(() => {
 
             <!-- Lookup Query Mapping -->
             <div class="flex items-start gap-2">
-              <label class="w-32 text-xs font-medium pt-2">Lookup Query Mapping:</label>
+              <div class="w-32 flex items-center gap-1 pt-2">
+                <label class="text-xs font-medium">Lookup Query Mapping:</label>
+                <Icon
+                  name="material-symbols:info-outline"
+                  class="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary"
+                  size="16"
+                  @click="showLookupQueryMappingInfo"
+                />
+              </div>
               <div class="flex-1">
                 <FormKit
                   v-model="componentItemForm.lookup_queryMapping"
                   type="textarea"
                   :disabled="isComponentItemViewMode"
                   rows="5"
+                  outer-class="mb-0"
+                />
+              </div>
+            </div>
+
+            <!-- CRUD Column (only for non-datatable parent components) -->
+            <div v-if="editingComponentItemParentType && editingComponentItemParentType !== 'datatable'" class="flex items-start gap-2">
+              <div class="w-32 flex items-center gap-1 pt-2">
+                <label class="text-xs font-medium">CRUD Column:</label>
+                <Icon
+                  name="material-symbols:info-outline"
+                  class="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary"
+                  size="16"
+                  @click="showCrudColumnInfo"
+                />
+              </div>
+              <div class="flex-1">
+                <FormKit
+                  v-model="componentItemForm.crudColumn"
+                  type="select"
+                  :options="[{ label: '-- Auto Detect --', value: '' }, ...prismaSchemaOptions]"
+                  :disabled="isComponentItemViewMode"
+                  placeholder="Select model.field for CRUD mapping"
                   outer-class="mb-0"
                 />
               </div>
@@ -2436,29 +3757,20 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Menu (Select Dropdown) -->
+            <!-- Menu (Searchable Select Dropdown) -->
             <div class="flex items-center gap-2">
               <label class="w-32 text-xs font-medium">Menu:</label>
-              <div class="flex-1 relative">
-                <FormKit
+              <div class="flex-1">
+                <v-select
                   v-model="pageForm.menu"
-                  type="select"
                   :options="menuOptions"
+                  :reduce="option => option.value"
+                  label="label"
                   :disabled="isPageViewMode"
-                  placeholder="Select Menu"
-                  outer-class="mb-0"
+                  placeholder="Search and select menu..."
+                  :clearable="!isPageViewMode"
+                  class="formkit-vselect"
                 />
-                <button
-                  v-if="pageForm.menu && !isPageViewMode"
-                  type="button"
-                  @click="pageForm.menu = ''"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  <Icon
-                    name="material-symbols:close"
-                    class="!w-3 !h-3 text-gray-500"
-                  />
-                </button>
               </div>
             </div>
 
@@ -2492,6 +3804,19 @@ onUnmounted(() => {
                 </button>
               </div>
             </div>
+
+            <!-- Customized (Checkbox) -->
+            <div class="flex items-center gap-2">
+              <label class="w-32 text-xs font-medium">Customized:</label>
+              <div class="flex-1">
+                <input
+                  type="checkbox"
+                  v-model="pageForm.customized"
+                  :disabled="isPageViewMode"
+                  class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+            </div>
           </div>
         </FormKit>
       </template>
@@ -2516,9 +3841,10 @@ onUnmounted(() => {
 </style>
 
 <style>
-/* Custom width for Component modal */
+/* Custom width for Component modal - wider to accommodate inline component items table */
 .component-modal-custom {
-  width: 600px !important;
+  width: 900px !important;
+  max-width: 95vw !important;
 }
 
 /* Hide default close icon when custom header is used */

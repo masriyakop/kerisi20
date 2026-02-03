@@ -7,6 +7,7 @@ export default defineEventHandler(async (event) => {
     const pageTitle = body?.pageTitle?.toString().trim();
     const menu = body?.menu?.toString().trim() || "";
     const status = body?.status?.toString().trim() || "ACTIVE";
+    const customized = body?.customized === true || body?.customized === 1 ? 1 : 0;
 
     if (!pageTitle) {
       return {
@@ -50,6 +51,7 @@ export default defineEventHandler(async (event) => {
       pageTitle,
       menu,
       status,
+      customized,
       updateTimestamp: new Date().toISOString(),
     };
 

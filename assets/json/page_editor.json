@@ -74,10 +74,10 @@
   {
     "pageId": 1475,
     "pageTitle": "Budget Code",
-    "menu": "Budget>Setup>Budget Code",
+    "menu": "/budget/setup/budget-code",
     "status": "ACTIVE",
     "createdTimestamp": "2026-01-16T07:47:06.079Z",
-    "updateTimestamp": null
+    "updateTimestamp": "2026-01-28T08:07:23.405Z"
   },
   {
     "pageId": 1035,
@@ -90,10 +90,11 @@
   {
     "pageId": 1071,
     "pageTitle": "Structure Budget List",
-    "menu": "Budget>Setup> Budget Structure List",
+    "menu": "/page-editor/pengujianmuka/structurebudgetlist",
     "status": "ACTIVE",
     "createdTimestamp": "2026-01-16T07:47:06.079Z",
-    "updateTimestamp": null
+    "updateTimestamp": "2026-02-02T13:05:48.931Z",
+    "customized": 0
   },
   {
     "pageId": 1262,
@@ -394,9 +395,17 @@
   {
     "pageId": 2979,
     "pageTitle": "Message Type",
-    "menu": "/communication/setup/messagetype",
+    "menu": "/messagemanagement/setup/messagetype",
     "status": "ACTIVE",
     "createdTimestamp": "2026-01-25T12:47:11.087Z",
-    "updateTimestamp": null
+    "updateTimestamp": "2026-01-28T08:24:26.972Z"
+  },
+  {
+    "pageId": 2980,
+    "pageTitle": "Fund Type",
+    "menu": "/setup/glstructure/fundtype",
+    "status": "ACTIVE",
+    "createdTimestamp": "2026-01-28T02:01:39.869Z",
+    "updateTimestamp": "2026-01-28T08:59:28.693Z"
   }
 ]
