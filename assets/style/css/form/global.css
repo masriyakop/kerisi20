@@ -1,13 +1,18 @@
+/* FormKit Global - Monochrome Compact */
 .formkit-label-global {
-  @apply text-[rgb(var(--text-color))];
+  @apply text-[rgb(var(--text-color))] font-medium;
+  font-size: var(--font-size-xs, 0.6875rem);
+  margin-bottom: 0.25rem;
 }
 
 .formkit-outer-global {
-  @apply mb-4 text-[rgb(var(--text-color))] formkit-disabled:opacity-50;
+  @apply mb-3 text-[rgb(var(--text-color))] formkit-disabled:opacity-50;
 }
 
 .formkit-help-global {
-  @apply text-xs mt-1;
+  @apply mt-1;
+  font-size: var(--font-size-xs, 0.6875rem);
+  color: rgba(var(--text-color), 0.6);
 }
 
 .formkit-messages-global {
@@ -15,7 +20,8 @@
 }
 
 .formkit-message-global {
-  @apply text-red-500 mb-1 text-xs;
+  @apply text-red-600 mb-0.5;
+  font-size: var(--font-size-xs, 0.6875rem);
 }
 
 .formkit-wrapper-global {

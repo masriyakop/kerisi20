@@ -13,6 +13,133 @@ definePageMeta({
 const { $swal } = useNuxtApp();
 const router = useRouter();
 
+// Show Component CSS Class info
+const showComponentCssClassInfo = () => {
+  $swal.fire({
+    title: "Component CSS Class",
+    html: `
+      <div class="text-left space-y-4">
+        <p class="text-sm text-gray-600 mb-2">Enter one or more CSS class names in this field, separated by <strong>spaces</strong>. The Page Generator will apply them to the datatable.</p>
+        
+        <p class="font-semibold text-sm mb-1">Datatable Classes:</p>
+        <table class="w-full text-sm border border-gray-200 rounded">
+          <thead class="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              <th class="text-left px-2 py-1 border-b">Class</th>
+              <th class="text-left px-2 py-1 border-b">Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">stripe</code></td>
+              <td class="px-2 py-1">Alternating row background colors (striped rows)</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">bordered</code></td>
+              <td class="px-2 py-1">Add borders around table cells</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">borderless</code></td>
+              <td class="px-2 py-1">Remove all table borders</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">hover</code></td>
+              <td class="px-2 py-1">Highlight row on mouse hover</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="font-semibold text-sm mb-1 mt-3">General Classes:</p>
+        <table class="w-full text-sm border border-gray-200 rounded">
+          <thead class="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              <th class="text-left px-2 py-1 border-b">Class</th>
+              <th class="text-left px-2 py-1 border-b">Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">d-none</code></td>
+              <td class="px-2 py-1">Hide the component (display none)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+          <p class="text-xs font-semibold mb-1">How to enter:</p>
+          <p class="text-xs text-gray-600 dark:text-gray-400">Type one or more class names separated by spaces.</p>
+          <p class="text-xs text-gray-500 mt-1">Example: <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">stripe hover</code> &mdash; striped rows with hover effect</p>
+          <p class="text-xs text-gray-500">Example: <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">stripe bordered</code> &mdash; striped rows with cell borders</p>
+        </div>
+
+        <p class="text-xs text-gray-400 mt-2">Any unrecognized class names will be added as-is to the table wrapper for custom styling.</p>
+      </div>
+    `,
+    icon: "info",
+    width: "560px",
+    confirmButtonText: "Got it",
+  });
+};
+
+// Show Column Class info
+const showColumnClassInfo = () => {
+  $swal.fire({
+    title: "Column Class",
+    html: `
+      <div class="text-left space-y-4">
+        <p class="text-sm text-gray-600 mb-2">Enter CSS class names for individual columns. Separate multiple classes with a <strong>space</strong>.</p>
+        
+        <table class="w-full text-sm border border-gray-200 rounded">
+          <thead class="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              <th class="text-left px-2 py-1 border-b">Class</th>
+              <th class="text-left px-2 py-1 border-b">Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">d-none</code></td>
+              <td class="px-2 py-1">Hide the column — column will not appear in the datatable</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">text-center</code></td>
+              <td class="px-2 py-1">Center-align the column text</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">text-right</code></td>
+              <td class="px-2 py-1">Right-align the column text</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">text-nowrap</code></td>
+              <td class="px-2 py-1">Prevent text wrapping in the column</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">font-bold</code></td>
+              <td class="px-2 py-1">Make the column text bold</td>
+            </tr>
+            <tr>
+              <td class="px-2 py-1"><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">uppercase</code></td>
+              <td class="px-2 py-1">Transform column text to UPPERCASE</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+          <p class="text-xs font-semibold mb-1">How to enter:</p>
+          <p class="text-xs text-gray-600 dark:text-gray-400">Type one or more class names separated by spaces in the Class cell of the column row.</p>
+          <p class="text-xs text-gray-500 mt-1">Example: <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">d-none</code> &mdash; hides the column entirely</p>
+          <p class="text-xs text-gray-500">Example: <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">text-center font-bold</code> &mdash; centered bold text</p>
+        </div>
+
+        <p class="text-xs text-gray-400 mt-2">Note: The column data is still fetched from the database even when hidden with <code>d-none</code>, so it can be used by JS code in other columns.</p>
+      </div>
+    `,
+    icon: "info",
+    width: "520px",
+    confirmButtonText: "Got it",
+  });
+};
+
 const loading = ref(false);
 const componentId = ref(null);
 const pageId = ref(null);
@@ -31,6 +158,7 @@ const componentForm = ref({
   collapseEnable: false,
   collapseByDefault: false,
   visible: true,
+  useExistingOrmModel: false,
   active: "active", // 'active' or 'inactive'
   order: 1,
   queryMapping: "",
@@ -48,11 +176,14 @@ const dtConfig = ref({
   dt_sort: [],
   dt_title: "",
   dt_pageLength: "5",
-  dt_aLengthMenu: "5,10,25,50,100",
+  dt_aLengthMenu: "5,10,20,25,50,100",
   dt_bLengthChange: true,
   dt_bPaginate: true,
   dt_freeze_left: "0",
   dt_freeze_right: "0",
+  dt_column_movable: false,
+  dt_column_hide_show: false,
+  dt_column_grouping_list: false,
   dt_filter: "none",
   dt_popup_view: false,
   dt_popup_edit: false,
@@ -68,6 +199,45 @@ const filterOptions = [
   { label: "Smart", value: "smart" },
   { label: "Top", value: "top" },
 ];
+
+// ORM model name fetched from the generated CRUD API endpoint
+const ormModelName = ref("");
+const ormModelLoading = ref(false);
+
+const fetchOrmModelName = async () => {
+  const apiPath = (dtConfig.value.dt_ajax || "").trim();
+  if (!apiPath) {
+    ormModelName.value = "";
+    return;
+  }
+  ormModelLoading.value = true;
+  try {
+    const { data } = await useFetch("/api/component-editor/orm-model", {
+      params: { apiPath },
+    });
+    if (data.value?.statusCode === 200 && data.value.data?.modelName) {
+      ormModelName.value = data.value.data.modelName;
+    } else {
+      ormModelName.value = "";
+    }
+  } catch (e) {
+    ormModelName.value = "";
+  } finally {
+    ormModelLoading.value = false;
+  }
+};
+
+// Fetch ORM model name when checkbox is checked or dt_ajax changes
+watch(
+  () => [componentForm.value.useExistingOrmModel, dtConfig.value.dt_ajax],
+  ([useOrm]) => {
+    if (useOrm) {
+      fetchOrmModelName();
+    } else {
+      ormModelName.value = "";
+    }
+  },
+);
 
 // Load component types from lookup.json
 const loadComponentTypes = async () => {
@@ -132,12 +302,15 @@ const parseComponentData = (componentData) => {
       dt_key: parsed.dt_key || [],
       dt_sort: parsed.dt_sort || [],
       dt_title: parsed.dt_title || "",
-      dt_pageLength: parsed.dt_pageLength || "5",
-      dt_aLengthMenu: parsed.dt_aLengthMenu || "5,10,25,50,100",
-      dt_bLengthChange: parsed.dt_bLengthChange === "true" || parsed.dt_bLengthChange === true,
+      dt_pageLength: "5",
+      dt_aLengthMenu: "5,10,20,25,50,100",
+      dt_bLengthChange: true,
       dt_bPaginate: parsed.dt_bPaginate === "true" || parsed.dt_bPaginate === true,
       dt_freeze_left: parsed.dt_freeze_left?.toString() || "0",
       dt_freeze_right: parsed.dt_freeze_right?.toString() || "0",
+      dt_column_movable: parsed.dt_column_movable === "true" || parsed.dt_column_movable === true,
+      dt_column_hide_show: parsed.dt_column_hide_show === "true" || parsed.dt_column_hide_show === true,
+      dt_column_grouping_list: parsed.dt_column_grouping_list === "true" || parsed.dt_column_grouping_list === true,
       dt_filter: parsed.dt_filter || "none",
       dt_popup_view: parsed.dt_popup_view === "true" || parsed.dt_popup_view === true || false,
       dt_popup_edit: parsed.dt_popup_edit === "true" || parsed.dt_popup_edit === true || false,
@@ -180,6 +353,7 @@ const fetchComponent = async () => {
         collapseEnable: component.value.collapseEnable === 1 || component.value.collapseEnable === true,
         collapseByDefault: component.value.collapseByDefault === 1 || component.value.collapseByDefault === true,
         visible: component.value.visible === 1 || component.value.visible === true,
+        useExistingOrmModel: component.value.useExistingOrmModel === 1 || component.value.useExistingOrmModel === true,
         active: isActive ? "active" : "inactive",
         order: component.value.order || 1,
         queryMapping: component.value.queryMapping || "",
@@ -189,6 +363,11 @@ const fetchComponent = async () => {
       // Store original values for change detection
       originalComponentForm.value = JSON.parse(JSON.stringify(componentForm.value));
       originalDtConfig.value = JSON.parse(JSON.stringify(dtConfig.value));
+
+      // Fetch ORM model name if checkbox is already checked
+      if (componentForm.value.useExistingOrmModel) {
+        fetchOrmModelName();
+      }
     } else {
       $swal.fire({
         title: "Error",
@@ -445,6 +624,7 @@ const handleSave = async () => {
       collapseEnable: componentForm.value.collapseEnable ? 1 : 0,
       collapseByDefault: componentForm.value.collapseByDefault ? 1 : 0,
       visible: componentForm.value.visible ? 1 : 0,
+      useExistingOrmModel: componentForm.value.useExistingOrmModel ? 1 : 0,
       active: componentForm.value.active === "active" ? 1 : 0,
       order: componentForm.value.order || 1,
       queryMapping: componentForm.value.queryMapping || "",
@@ -612,7 +792,15 @@ const handleSave = async () => {
 
                 <!-- CSS Class -->
                 <div class="flex items-center gap-2">
-                  <label class="w-32 text-xs font-medium">CSS Class:</label>
+                  <div class="w-32 flex items-center gap-1">
+                    <label class="text-xs font-medium">CSS Class:</label>
+                    <Icon
+                      name="material-symbols:info-outline"
+                      class="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary"
+                      size="16"
+                      @click="showComponentCssClassInfo"
+                    />
+                  </div>
                   <div class="flex-1">
                     <FormKit
                       v-model="componentForm.cssClass"
@@ -647,6 +835,37 @@ const handleSave = async () => {
                     />
                   </div>
                 </div>
+
+                <!-- Use existing ORM Model -->
+                <div class="flex items-center gap-2">
+                  <label class="w-32 text-xs font-medium"></label>
+                  <div class="flex-1 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      v-model="componentForm.useExistingOrmModel"
+                      class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <label class="text-xs font-medium">Use existing ORM Model</label>
+                    <span
+                      v-if="componentForm.useExistingOrmModel && ormModelLoading"
+                      class="ml-2 text-xs text-gray-400"
+                    >
+                      loading...
+                    </span>
+                    <span
+                      v-else-if="componentForm.useExistingOrmModel && ormModelName"
+                      class="ml-2 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-mono rounded"
+                    >
+                      {{ ormModelName }}
+                    </span>
+                    <span
+                      v-else-if="componentForm.useExistingOrmModel && !ormModelName && !ormModelLoading"
+                      class="ml-2 text-xs text-red-500"
+                    >
+                      (no ORM model found — check the API entry)
+                    </span>
+                  </div>
+                </div>
               </div>
             </template>
           </rs-card>
@@ -679,6 +898,7 @@ const handleSave = async () => {
                         v-model="dtConfig.dt_pageLength"
                         type="number"
                         min="1"
+                        disabled
                         outer-class="mb-0"
                       />
                     </div>
@@ -686,11 +906,12 @@ const handleSave = async () => {
                       <input
                         type="checkbox"
                         v-model="dtConfig.dt_bLengthChange"
-                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                        disabled
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-not-allowed opacity-60"
                       />
-                      <label class="text-xs font-medium">Allow Change</label>
+                      <label class="text-xs font-medium text-gray-400">Allow Change</label>
                     </div>
-                    <div class="text-xs text-gray-500">{{ dtConfig.dt_aLengthMenu }}</div>
+                    <div class="text-xs text-gray-400">{{ dtConfig.dt_aLengthMenu }}</div>
                     <div class="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -726,27 +947,56 @@ const handleSave = async () => {
                   </div>
                 </div>
 
-                <!-- Freeze Column -->
+                <!-- Column Freeze & Column Action -->
                 <div class="flex items-center gap-2">
-                  <label class="w-32 text-xs font-medium">Freeze Column:</label>
-                  <div class="flex-1 flex items-center gap-4">
-                    <div class="flex items-center gap-2 flex-1">
+                  <label class="w-32 text-xs font-medium">Column Freeze:</label>
+                  <div class="flex-1 flex items-center gap-4 flex-wrap">
+                    <div class="flex items-center gap-2">
                       <label class="text-xs font-medium">Left:</label>
-                      <FormKit
-                        v-model="dtConfig.dt_freeze_left"
-                        type="number"
-                        min="0"
-                        outer-class="mb-0 flex-1"
-                      />
+                      <div class="w-14">
+                        <FormKit
+                          v-model="dtConfig.dt_freeze_left"
+                          type="number"
+                          min="0"
+                          outer-class="mb-0"
+                        />
+                      </div>
                     </div>
-                    <div class="flex items-center gap-2 flex-1">
+                    <div class="flex items-center gap-2">
                       <label class="text-xs font-medium">Right:</label>
-                      <FormKit
-                        v-model="dtConfig.dt_freeze_right"
-                        type="number"
-                        min="0"
-                        outer-class="mb-0 flex-1"
+                      <div class="w-14">
+                        <FormKit
+                          v-model="dtConfig.dt_freeze_right"
+                          type="number"
+                          min="0"
+                          outer-class="mb-0"
+                        />
+                      </div>
+                    </div>
+                    <label class="text-xs font-medium ml-2">Column Action:</label>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_column_movable"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                       />
+                      <label class="text-xs font-medium">Movable</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_column_hide_show"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Hide/Show</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        v-model="dtConfig.dt_column_grouping_list"
+                        class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label class="text-xs font-medium">Grouping List</label>
                     </div>
                   </div>
                 </div>
@@ -809,7 +1059,17 @@ const handleSave = async () => {
                       <tr>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Title BI <span class="text-red-500">*</span></th>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Title BM <span class="text-red-500">*</span></th>
-                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Class</th>
+                        <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">
+                          <div class="flex items-center gap-1">
+                            Class
+                            <Icon
+                              name="material-symbols:info-outline"
+                              class="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary"
+                              size="16"
+                              @click="showColumnClassInfo"
+                            />
+                          </div>
+                        </th>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Key <span class="text-red-500">*</span></th>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Sort</th>
                         <th class="px-3 py-2 border border-gray-200 dark:border-gray-700">Action</th>

@@ -75,6 +75,30 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  freezeLeft: {
+    type: Number,
+    default: 0,
+  },
+  freezeRight: {
+    type: Number,
+    default: 0,
+  },
+  columnMovable: {
+    type: Boolean,
+    default: false,
+  },
+  columnHideShow: {
+    type: Boolean,
+    default: false,
+  },
+  columnGroupingList: {
+    type: Boolean,
+    default: false,
+  },
+  exportConfigRef: {
+    type: Object,
+    default: null,
+  },
 });
 
 // Default varaiable
@@ -101,6 +125,8 @@ const hideTable = ref(false);
 
 // Other Variable
 const sortColumnFirstTime = ref(false);
+const savedSortColumnName = ref("");
+const columnContextMenu = ref({ show: false, x: 0, y: 0, column: "" });
 
 const isDesktop = computed(() => {
   return windowWidth.value >= mobileWidth ? true : false;
@@ -113,6 +139,90 @@ if (props.optionsAdvanced.responsive) {
     hideTable.value = true;
   }
 }
+
+// Freeze column helpers — measure actual th widths after render
+const headerCells = ref([]); // template ref array for <th> elements
+const colWidths = ref([]); // measured widths
+
+const measureColumnWidths = () => {
+  if (!headerCells.value || headerCells.value.length === 0) return;
+  colWidths.value = headerCells.value.map((th) => th ? th.offsetWidth : 0);
+};
+
+// Compute cumulative left offsets from measured widths
+const leftOffsets = computed(() => {
+  const offsets = [0];
+  for (let i = 1; i < colWidths.value.length; i++) {
+    offsets[i] = offsets[i - 1] + colWidths.value[i - 1];
+  }
+  return offsets;
+});
+
+// Compute cumulative right offsets from measured widths
+const rightOffsets = computed(() => {
+  const total = colWidths.value.length;
+  const offsets = new Array(total).fill(0);
+  for (let i = total - 2; i >= 0; i--) {
+    offsets[i] = offsets[i + 1] + colWidths.value[i + 1];
+  }
+  return offsets;
+});
+
+const hasFreezeColumns = computed(() => props.freezeLeft > 0 || props.freezeRight > 0);
+
+// Returns inline style for frozen header (th) cells
+const getFreezeHeaderStyle = (colIndex, totalCols) => {
+  if (!hasFreezeColumns.value) return {};
+  const style = {};
+  if (props.freezeLeft > 0 && colIndex < props.freezeLeft) {
+    style.position = "sticky";
+    style.left = `${leftOffsets.value[colIndex] || 0}px`;
+    style.zIndex = 12;
+    style.backgroundColor = "rgb(var(--bg-2))";
+    if (colIndex === props.freezeLeft - 1) {
+      style.boxShadow = "4px 0 6px -2px rgba(0,0,0,0.15)";
+      style.clipPath = "inset(0 -6px 0 0)";
+    }
+  }
+  if (props.freezeRight > 0 && colIndex >= totalCols - props.freezeRight) {
+    style.position = "sticky";
+    style.right = `${rightOffsets.value[colIndex] || 0}px`;
+    style.zIndex = 12;
+    style.backgroundColor = "rgb(var(--bg-2))";
+    if (colIndex === totalCols - props.freezeRight) {
+      style.boxShadow = "-4px 0 6px -2px rgba(0,0,0,0.15)";
+      style.clipPath = "inset(0 0 0 -6px)";
+    }
+  }
+  return style;
+};
+
+// Returns inline style for frozen body (td) cells
+const getFreezeStyle = (colIndex, totalCols) => {
+  if (!hasFreezeColumns.value) return {};
+  const style = {};
+  if (props.freezeLeft > 0 && colIndex < props.freezeLeft) {
+    style.position = "sticky";
+    style.left = `${leftOffsets.value[colIndex] || 0}px`;
+    style.zIndex = 2;
+    style.backgroundColor = "rgb(var(--bg-2))";
+    if (colIndex === props.freezeLeft - 1) {
+      style.boxShadow = "4px 0 6px -2px rgba(0,0,0,0.15)";
+      style.clipPath = "inset(0 -6px 0 0)";
+    }
+  }
+  if (props.freezeRight > 0 && colIndex >= totalCols - props.freezeRight) {
+    style.position = "sticky";
+    style.right = `${rightOffsets.value[colIndex] || 0}px`;
+    style.zIndex = 2;
+    style.backgroundColor = "rgb(var(--bg-2))";
+    if (colIndex === totalCols - props.freezeRight) {
+      style.boxShadow = "-4px 0 6px -2px rgba(0,0,0,0.15)";
+      style.clipPath = "inset(0 0 0 -6px)";
+    }
+  }
+  return style;
+};
 
 const camelCasetoTitle = (str, exclusions = []) => {
   if (exclusions.includes(str)) {
@@ -164,18 +274,22 @@ watch(
     if (props.data && props.data.length > 0) {
       dataTable.value = props.data;
       dataLength.value = props.data.length;
-      if (props.field && props.field.length > 0) {
-        columnTitle.value = spacingCharactertoCamelCase(props.field);
-        dataTitle.value = spacingCharactertoCamelCase(props.field);
-      } else {
-        columnTitle.value = Object.keys(dataTable.value[0]);
-        dataTitle.value = Object.keys(dataTable.value[0]);
+      const newOrder = props.field && props.field.length > 0
+        ? spacingCharactertoCamelCase(props.field)
+        : Object.keys(dataTable.value[0]);
+      dataTitle.value = newOrder;
+      // When columnMovable, columnHideShow, or columnGroupingList: preserve user's column order/visibility on search/filter (don't reset)
+      if ((!props.columnMovable && !props.columnHideShow && !props.columnGroupingList) || columnTitle.value.length === 0) {
+        columnTitle.value = newOrder;
       }
     } else {
       dataTable.value = [];
       dataLength.value = 0;
-      columnTitle.value = [];
-      dataTitle.value = [];
+      // When columnMovable, columnHideShow, or columnGroupingList: preserve column order/visibility even when data is empty
+      if (!props.columnMovable && !props.columnHideShow && !props.columnGroupingList) {
+        columnTitle.value = [];
+        dataTitle.value = [];
+      }
     }
   },
   { immediate: true }
@@ -216,13 +330,18 @@ const filteredDatabyTitle = (data, title) => {
         }
       });
     } else {
-      // Get index title from columnTitle
-      let index = columnTitle.value.indexOf(title);
-
-      // Convert data json to array
-      let arr = Object.values(data);
-
-      result = arr[index];
+      const index = columnTitle.value.indexOf(title);
+      // Prefer camelCase match - when columns are hidden, index no longer aligns with props.field
+      let fieldName = props.field?.find((f) => spacingCharactertoCamelCase([f])[0] === title);
+      if (!fieldName && index >= 0 && props.field && props.field[index] !== undefined) {
+        fieldName = props.field[index];
+      }
+      if (fieldName !== undefined && fieldName !== null) {
+        result = data[fieldName];
+      } else {
+        const arr = Object.values(data);
+        result = arr[index];
+      }
     }
     if (result === "" || result === null) result = "-";
     return result;
@@ -232,11 +351,16 @@ const filteredDatabyTitle = (data, title) => {
   }
 };
 
-onMounted(() => {
-  if (dataTable.value.length > 0) {
-    setColumnTitle(dataTable.value[0]);
-  }
-});
+
+// Re-measure column widths when data or columns change
+watch(
+  () => [props.data, props.field, columnTitle.value],
+  () => {
+    if (hasFreezeColumns.value) {
+      nextTick(() => measureColumnWidths());
+    }
+  },
+);
 
 // Computed data
 const computedData = computed(() => {
@@ -349,15 +473,6 @@ const prevPage = () => {
   if (currentPage.value > 1) currentPage.value--;
 };
 
-// Expose sort state and data for parent components to access
-defineExpose({
-  currentSort,
-  currentSortDir,
-  columnTitle,
-  computedData,
-  dataTable,
-});
-
 const firstPage = () => {
   currentPage.value = 1;
 };
@@ -404,6 +519,57 @@ const getFilter = (key) => {
   });
   return result;
 };
+
+const onColumnReorderStart = () => {
+  savedSortColumnName.value = columnTitle.value[currentSort.value] || "";
+};
+const onColumnReorderEnd = () => {
+  if (savedSortColumnName.value) {
+    const newIndex = columnTitle.value.indexOf(savedSortColumnName.value);
+    if (newIndex !== -1) currentSort.value = newIndex;
+    savedSortColumnName.value = "";
+  }
+  if (hasFreezeColumns.value) {
+    nextTick(() => measureColumnWidths());
+  }
+};
+
+const showColumnContextMenu = (e, columnName) => {
+  if (!props.columnHideShow) return;
+  if (columnName === "No" || columnName === "Action") return;
+  e.preventDefault();
+  columnContextMenu.value = { show: true, x: e.clientX, y: e.clientY, column: columnName };
+  nextTick(() => document.addEventListener("click", hideColumnContextMenu, { once: true }));
+};
+
+const hideColumnContextMenu = () => {
+  columnContextMenu.value = { show: false, x: 0, y: 0, column: "" };
+};
+
+const onContextMenuHide = () => {
+  if (columnContextMenu.value.column) {
+    hideColumn(columnContextMenu.value.column);
+  }
+  hideColumnContextMenu();
+};
+
+onMounted(() => {
+  if (dataTable.value.length > 0) {
+    setColumnTitle(dataTable.value[0]);
+  }
+  if (hasFreezeColumns.value) {
+    nextTick(() => measureColumnWidths());
+  }
+  if (props.exportConfigRef && typeof props.exportConfigRef === 'object' && 'value' in props.exportConfigRef) {
+    props.exportConfigRef.value = getExportConfig;
+  }
+});
+
+onUnmounted(() => {
+  if (props.exportConfigRef && typeof props.exportConfigRef === 'object' && 'value' in props.exportConfigRef) {
+    props.exportConfigRef.value = null;
+  }
+});
 
 // Watch filter.value
 watch(
@@ -458,6 +624,223 @@ const filterComputed = computed(() => {
   return result;
 });
 
+// Grouped cell info for columnGroupingList: { rowIndex: { colIndex: { rowspan, value } } }
+// When rowspan > 0: render cell with rowspan. When rowspan === 0: skip (spanned by above cell)
+// Data is sorted by groupable columns (left to right) so consecutive rows can be merged
+const groupedCellInfo = computed(() => {
+  if (!props.columnGroupingList) return null;
+  const columns = columnTitle.value;
+  const groupableIndices = columns
+    .map((name, i) => ({ name, i }))
+    .filter(({ name }) => (name || "").toLowerCase() !== "no" && (name || "").toLowerCase() !== "action")
+    .map(({ i }) => i);
+
+  // Sort data by groupable columns (left to right) for proper grouping
+  const data = [...computedData.value].sort((a, b) => {
+    for (const colIdx of groupableIndices) {
+      const aVal = String(filteredDatabyTitle(a, columns[colIdx]));
+      const bVal = String(filteredDatabyTitle(b, columns[colIdx]));
+      if (aVal !== bVal) return aVal.localeCompare(bVal);
+    }
+    return 0;
+  });
+
+  const info = {};
+  for (let ri = 0; ri < data.length; ri++) info[ri] = {};
+
+  for (let c = 0; c < groupableIndices.length; c++) {
+    const colIdx = groupableIndices[c];
+    const prevGroupableIndices = groupableIndices.slice(0, c);
+    let row = 0;
+    while (row < data.length) {
+      const rowData = data[row];
+      const value = filteredDatabyTitle(rowData, columns[colIdx]);
+      let span = 1;
+      while (row + span < data.length) {
+        const nextRowData = data[row + span];
+        const nextValue = filteredDatabyTitle(nextRowData, columns[colIdx]);
+        if (String(nextValue) !== String(value)) break;
+        let sameParent = true;
+        for (const prevIdx of prevGroupableIndices) {
+          const prevVal = filteredDatabyTitle(rowData, columns[prevIdx]);
+          const nextPrevVal = filteredDatabyTitle(nextRowData, columns[prevIdx]);
+          if (String(prevVal) !== String(nextPrevVal)) {
+            sameParent = false;
+            break;
+          }
+        }
+        if (!sameParent) break;
+        span++;
+      }
+      info[row][colIdx] = { rowspan: span, value };
+      for (let i = 1; i < span; i++) info[row + i][colIdx] = { rowspan: 0 };
+      row += span;
+    }
+  }
+  return { info, sortedData: data };
+});
+
+const displayData = computed(() => {
+  if (props.columnGroupingList && groupedCellInfo.value) {
+    return groupedCellInfo.value.sortedData;
+  }
+  return computedData.value;
+});
+
+// Full data for export (no pagination): respects keyword filter, sort, and grouping order
+const exportData = computed(() => {
+  let data = dataTable.value
+    .slice()
+    .filter((row) => {
+      if (keyword.value === "") return true;
+      return Object.entries(row).some(([key, value]) => {
+        try {
+          return value != null && value.toString().toLowerCase().includes(keyword.value.toLowerCase());
+        } catch {
+          return false;
+        }
+      });
+    });
+  if (props.columnGroupingList) {
+    const columns = columnTitle.value;
+    const groupableIndices = columns
+      .map((name, i) => ({ name, i }))
+      .filter(({ name }) => (name || "").toLowerCase() !== "no" && (name || "").toLowerCase() !== "action")
+      .map(({ i }) => i);
+    data = data.sort((a, b) => {
+      for (const colIdx of groupableIndices) {
+        const aVal = String(filteredDatabyTitle(a, columns[colIdx]));
+        const bVal = String(filteredDatabyTitle(b, columns[colIdx]));
+        if (aVal !== bVal) return aVal.localeCompare(bVal);
+      }
+      return 0;
+    });
+  } else {
+    data = data.sort((a, b) => {
+      let modifier = currentSortDir.value === "desc" ? -1 : 1;
+      const a1 = filteredDatabyTitle(a, columnTitle.value[currentSort.value]);
+      const b1 = filteredDatabyTitle(b, columnTitle.value[currentSort.value]);
+      let va = typeof a1 === "string" ? a1.toLowerCase() : a1;
+      let vb = typeof b1 === "string" ? b1.toLowerCase() : b1;
+      if (isNumeric(va)) va = parseFloat(va);
+      if (isNumeric(vb)) vb = parseFloat(vb);
+      if (va < vb) return -1 * modifier;
+      if (va > vb) return 1 * modifier;
+      return 0;
+    });
+  }
+  return data;
+});
+
+// Compute grouped cell info for export data (full data, no pagination) - for PDF/Excel merged cells
+const computeExportGroupedInfo = (data, columns, groupableIndices) => {
+  const info = {};
+  for (let ri = 0; ri < data.length; ri++) info[ri] = {};
+  for (const c of groupableIndices) {
+    const prevGroupableIndices = groupableIndices.filter((i) => i < c);
+    let row = 0;
+    while (row < data.length) {
+      const rowData = data[row];
+      const value = filteredDatabyTitle(rowData, columns[c]);
+      let span = 1;
+      while (row + span < data.length) {
+        const nextRowData = data[row + span];
+        const nextValue = filteredDatabyTitle(nextRowData, columns[c]);
+        if (String(nextValue) !== String(value)) break;
+        let sameParent = true;
+        for (const prevIdx of prevGroupableIndices) {
+          const prevVal = filteredDatabyTitle(rowData, columns[prevIdx]);
+          const nextPrevVal = filteredDatabyTitle(nextRowData, columns[prevIdx]);
+          if (String(prevVal) !== String(nextPrevVal)) {
+            sameParent = false;
+            break;
+          }
+        }
+        if (!sameParent) break;
+        span++;
+      }
+      info[row] = info[row] || {};
+      info[row][c] = { rowspan: span, value };
+      for (let i = 1; i < span; i++) {
+        info[row + i] = info[row + i] || {};
+        info[row + i][c] = { rowspan: 0 };
+      }
+      row += span;
+    }
+  }
+  return info;
+};
+
+// Get export config: visible columns in display order, field names for data lookup, and export data
+const getExportConfig = () => {
+  const visibleTitles = columnTitle.value.filter(
+    (name) => (name || "").toLowerCase() !== "no" && (name || "").toLowerCase() !== "action"
+  );
+  // Map by column title (camelCase) to field name, not by index - index is wrong when columns are reordered
+  const fieldNames = visibleTitles.map((title) => {
+    const found = props.field?.find((f) => spacingCharactertoCamelCase([f])[0] === title);
+    return found ?? title;
+  });
+  const data = exportData.value;
+  let groupedInfo = null;
+  if (props.columnGroupingList && data.length > 0) {
+    const columns = columnTitle.value;
+    const groupableIndices = columns
+      .map((name, i) => ({ name, i }))
+      .filter(({ name }) => (name || "").toLowerCase() !== "no" && (name || "").toLowerCase() !== "action")
+      .map(({ i }) => i);
+    groupedInfo = computeExportGroupedInfo(data, columns, groupableIndices);
+  }
+  // Map export column index -> columnTitle index (for groupedInfo lookup)
+  const columnTitleIndices = visibleTitles.map((t) => columnTitle.value.indexOf(t));
+  return {
+    columns: fieldNames,
+    data,
+    groupedInfo,
+    columnGroupingList: props.columnGroupingList,
+    columnTitleIndices,
+  };
+};
+
+// Template state for Save/Load Template
+const getTemplateState = () => {
+  const hiddenColumns = filter.value.filter((item) => item.action?.hide).map((item) => item.key);
+  const sortColumn = columnTitle.value[currentSort.value];
+  return {
+    columnOrder: [...columnTitle.value],
+    hiddenColumns,
+    sortColumn: sortColumn || null,
+    sortDirection: currentSortDir.value || "asc",
+  };
+};
+
+const applyTemplateState = (state) => {
+  if (!state || !Array.isArray(state.columnOrder)) return;
+  const validColumns = new Set(dataTitle.value);
+  const hiddenColumns = (state.hiddenColumns || []).filter((col) => validColumns.has(col));
+  const visibleOrder = state.columnOrder.filter((col) => validColumns.has(col) && !hiddenColumns.includes(col));
+  filter.value = hiddenColumns.map((key) => ({ key, action: { hide: true } }));
+  nextTick(() => {
+    columnTitle.value = visibleOrder.length > 0 ? visibleOrder : [...dataTitle.value];
+    if (state.sortColumn && columnTitle.value.includes(state.sortColumn)) {
+      currentSort.value = columnTitle.value.indexOf(state.sortColumn);
+      currentSortDir.value = state.sortDirection === "desc" ? "desc" : "asc";
+    }
+  });
+};
+
+// Expose sort state and data for parent components to access
+defineExpose({
+  currentSort,
+  currentSortDir,
+  columnTitle,
+  computedData,
+  dataTable,
+  getExportConfig,
+  getTemplateState,
+  applyTemplateState,
+});
+
 // watch pinia getter windowWidth
 watch(
   () => windowWidth.value,
@@ -486,14 +869,14 @@ watch(
       class="table-header"
       :class="{
         open: openFilter,
-        '!max-h-full': !optionsAdvanced.filterable,
+        '!max-h-full': !optionsAdvanced.filterable && !columnHideShow,
       }"
       v-if="advanced"
     >
       <div
         class="table-header-filter"
         :class="{
-          '!items-center !gap-3': !optionsAdvanced.filterable,
+          '!items-center !gap-3': !optionsAdvanced.filterable && !columnHideShow,
         }"
       >
         <div v-if="!hideTableSearch">
@@ -505,7 +888,7 @@ watch(
               outer-class="mb-0"
             />
             <rs-button
-              v-if="optionsAdvanced.filterable"
+              v-if="optionsAdvanced.filterable || columnHideShow"
               class="!px-3 sm:!px-6"
               @click="openFilter ? (openFilter = false) : (openFilter = true)"
             >
@@ -514,7 +897,7 @@ watch(
                 class="mr-0 md:mr-1"
                 size="1rem"
               />
-              <span class="hidden sm:block">Filter</span>
+              <span class="hidden sm:block">{{ columnHideShow && !optionsAdvanced.filterable ? 'Columns' : 'Filter' }}</span>
             </rs-button>
           </div>
         </div>
@@ -530,14 +913,14 @@ watch(
       </div>
       <div
         class="flex flex-wrap items-center justify-start gap-x-3"
-        v-if="optionsAdvanced.filterable"
+        v-if="optionsAdvanced.filterable || (columnHideShow && openFilter)"
       >
         <rs-dropdown
           :title="camelCasetoTitle(val)"
           size="sm"
           class="mt-3"
-          v-for="(val, index) in dataTitle"
-          :key="index"
+          v-for="(val, index) in (columnHideShow ? dataTitle.filter((v) => v !== 'No' && v !== 'Action') : dataTitle)"
+          :key="val"
         >
           <rs-dropdown-item @click="hideColumn(val)">
             {{ getFilter(val) ? "Show Column" : "Hide Column" }}
@@ -605,28 +988,96 @@ watch(
               'sticky top-0 z-10': maxHeight,
             }"
           >
-            <tr>
+            <draggable
+              v-if="columnMovable"
+              v-model="columnTitle"
+              tag="tr"
+              :item-key="(el) => el"
+              :move="(evt) => evt.draggedContext.element !== 'Action' && evt.draggedContext.element !== 'No'"
+              ghost-class="opacity-50"
+              chosen-class="bg-primary/20"
+              drag-class="cursor-grabbing"
+              class=""
+              @start="onColumnReorderStart"
+              @end="onColumnReorderEnd"
+            >
+              <template #item="{ element, index }">
+                <th
+                  :ref="(el) => { if (el) headerCells[index] = el; }"
+                  class="relative py-3 pl-5 pr-8 whitespace-nowrap"
+                  :class="{
+                    'border-r last:border-l last:border-r-0':
+                      options.bordered && !options.borderless,
+                    'border-[rgb(var(--border-color))]':
+                      options.variant === 'default',
+                    'border-primary/80 text-white': options.variant === 'primary',
+                    'border-secondary/80 text-white': options.variant === 'secondary',
+                    'border-info/80 text-white': options.variant === 'info',
+                    'border-success/80 text-white': options.variant === 'success',
+                    'border-warning/80 text-white': options.variant === 'warning',
+                    'border-danger/80 text-white': options.variant === 'danger',
+                    'w-36': options.fixed,
+                    'cursor-grab': columnMovable && element !== 'No' && element !== 'Action',
+                    'cursor-pointer': !columnMovable && optionsAdvanced.sortable && advanced && element !== 'No' && element !== 'Action',
+                    'cursor-default': element === 'No' || element === 'Action',
+                  }"
+                  :style="{ 'min-width': '100px', ...getFreezeHeaderStyle(index, columnTitle.length) }"
+                  :title="columnMovable && element !== 'No' && element !== 'Action' ? 'Drag to reorder column' : (columnHideShow && element !== 'No' && element !== 'Action' ? 'Right-click to hide column' : '')"
+                  @click="
+                    optionsAdvanced.sortable && advanced && element !== 'No' && element !== 'Action' ? sort(index) : null
+                  "
+                  @contextmenu="showColumnContextMenu($event, element)"
+                >
+                  {{ camelCasetoTitle(element) }}
+                  <div
+                    v-if="optionsAdvanced.sortable && advanced && element !== 'No' && element !== 'Action'"
+                    class="sortable"
+                  >
+                    <Icon
+                      class="absolute top-3 right-2 opacity-20"
+                      size="1.25rem"
+                      name="carbon:chevron-sort"
+                    />
+                    <Icon
+                      v-if="currentSort == index && currentSortDir == 'asc'"
+                      class="absolute top-3 right-2 opacity-50"
+                      size="1.25rem"
+                      name="carbon:chevron-sort-up"
+                    />
+                    <Icon
+                      v-else-if="currentSort == index && currentSortDir == 'desc'"
+                      class="absolute top-3 right-2 opacity-50"
+                      size="1.25rem"
+                      name="carbon:chevron-sort-down"
+                    />
+                  </div>
+                </th>
+              </template>
+            </draggable>
+            <tr v-else>
               <th
+                :ref="(el) => { if (el) headerCells[index] = el; }"
                 class="relative py-3 pl-5 pr-8 whitespace-nowrap"
                 :class="{
                   'border-r last:border-l last:border-r-0':
                     options.bordered && !options.borderless,
-                  'border-[rgb(var(--border-color))]':
-                    options.variant === 'default',
-                  'border-primary/80': options.variant === 'primary',
-                  'border-secondary/80': options.variant === 'secondary',
-                  'border-info/80': options.variant === 'info',
-                  'border-success/80': options.variant === 'success',
-                  'border-warning/80': options.variant === 'warning',
-                  'border-danger/80': options.variant === 'danger',
-                  'w-36': options.fixed,
-                  'cursor-pointer': optionsAdvanced.sortable && advanced && val !== 'No' && val !== 'Action',
-                  'cursor-default': optionsAdvanced.sortable && advanced && (val === 'No' || val === 'Action'),
+                    'border-[rgb(var(--border-color))]':
+                      options.variant === 'default',
+                    'border-primary/80 text-white': options.variant === 'primary',
+                    'border-secondary/80 text-white': options.variant === 'secondary',
+                    'border-info/80 text-white': options.variant === 'info',
+                    'border-success/80 text-white': options.variant === 'success',
+                    'border-warning/80 text-white': options.variant === 'warning',
+                    'border-danger/80 text-white': options.variant === 'danger',
+                    'w-36': options.fixed,
+                    'cursor-pointer': optionsAdvanced.sortable && advanced && val !== 'No' && val !== 'Action',
+                    'cursor-default': optionsAdvanced.sortable && advanced && (val === 'No' || val === 'Action'),
                 }"
-                style="min-width: 100px"
+                :style="{ 'min-width': '100px', ...getFreezeHeaderStyle(index, columnTitle.length) }"
                 @click="
                   optionsAdvanced.sortable && advanced && val !== 'No' && val !== 'Action' ? sort(index) : null
                 "
+                @contextmenu="showColumnContextMenu($event, val)"
                 v-for="(val, index) in columnTitle"
                 :key="index"
               >
@@ -692,34 +1143,40 @@ watch(
                 'cursor-pointer hover:bg-danger/5':
                   options.hover && options.variant === 'danger',
               }"
-              v-for="(val1, index1) in computedData"
+              v-for="(val1, index1) in displayData"
               :key="index1"
             >
-              <td
-                class="p-4 pl-5 break-words"
-                :class="{
-                  'border-r last:border-l last:border-r-0':
-                    options.bordered && !options.borderless,
-                  'border-[rgb(var(--border-color))]':
-                    options.variant === 'default',
-                  'border-primary/20': options.variant === 'primary',
-                  'border-secondary/20': options.variant === 'secondary',
-                  'border-info/20': options.variant === 'info',
-                  'border-success/20': options.variant === 'success',
-                  'border-warning/20': options.variant === 'warning',
-                  'border-danger/20': options.variant === 'danger',
-                }"
-                v-for="(val2, index2) in columnTitle"
-                :key="index2"
-              >
-                <slot
-                  :name="val2"
-                  :text="filteredDatabyTitle(val1, val2)"
-                  :value="val1"
+              <template v-for="(val2, index2) in columnTitle" :key="index2">
+                <td
+                  v-if="!columnGroupingList || ['no','action'].includes((val2 || '').toLowerCase()) || (groupedCellInfo && groupedCellInfo.info && groupedCellInfo.info[index1] && groupedCellInfo.info[index1][index2] && groupedCellInfo.info[index1][index2].rowspan > 0)"
+                  class="p-4 pl-5 break-words"
+                  :class="{
+                    'border-r last:border-l last:border-r-0':
+                      options.bordered && !options.borderless,
+                    'border-[rgb(var(--border-color))]':
+                      options.variant === 'default',
+                    'border-primary/20': options.variant === 'primary',
+                    'border-secondary/20': options.variant === 'secondary',
+                    'border-info/20': options.variant === 'info',
+                    'border-success/20': options.variant === 'success',
+                    'border-warning/20': options.variant === 'warning',
+                    'border-danger/20': options.variant === 'danger',
+                  }"
+                  :style="{
+                    ...getFreezeStyle(index2, columnTitle.length),
+                    ...(columnGroupingList && !['no','action'].includes((val2 || '').toLowerCase()) && groupedCellInfo?.info?.[index1]?.[index2]?.rowspan > 1 ? { verticalAlign: 'top' } : {}),
+                  }"
+                  :rowspan="columnGroupingList && !['no','action'].includes((val2 || '').toLowerCase()) && groupedCellInfo?.info?.[index1]?.[index2]?.rowspan || undefined"
                 >
-                  {{ filteredDatabyTitle(val1, val2) }}
-                </slot>
-              </td>
+                  <slot
+                    :name="val2"
+                    :text="columnGroupingList && !['no','action'].includes((val2 || '').toLowerCase()) && groupedCellInfo?.info?.[index1]?.[index2] ? groupedCellInfo.info[index1][index2].value : filteredDatabyTitle(val1, val2)"
+                    :value="val1"
+                  >
+                    {{ columnGroupingList && !['no','action'].includes((val2 || '').toLowerCase()) && groupedCellInfo?.info?.[index1]?.[index2] ? groupedCellInfo.info[index1][index2].value : filteredDatabyTitle(val1, val2) }}
+                  </slot>
+                </td>
+              </template>
             </tr>
           </tbody>
         </table>
@@ -830,6 +1287,23 @@ watch(
         </rs-button>
       </div>
     </div>
+    <!-- Column context menu (Hide) -->
+    <Teleport to="body">
+      <div
+        v-if="columnContextMenu.show"
+        class="fixed z-[9999] min-w-[120px] rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-2))] py-1 shadow-lg"
+        :style="{ left: columnContextMenu.x + 'px', top: columnContextMenu.y + 'px' }"
+      >
+        <button
+          type="button"
+          class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-[rgb(var(--bg-1))]"
+          @click="onContextMenuHide"
+        >
+          <Icon name="mdi:eye-off-outline" size="1rem" />
+          Hide
+        </button>
+      </div>
+    </Teleport>
   </div>
   <div v-else class="table-wrapper p-4">
     <div

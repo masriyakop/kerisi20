@@ -970,6 +970,7 @@ model wf_application_status {
   was_createdby_ptj           String?   @db.VarChar(50)
   stf_staff_id                String?   @db.VarChar(45)
   stf_ad_username             String?   @db.VarChar(45)
+  was_task_id                 Int?
 
   @@unique([was_application_id, was_process_id, was_sequence], map: "uq_application_status_01")
   @@index([was_workflow_code], map: "ind_app_status_01")
@@ -3091,4 +3092,33 @@ model vendor_jobscope {
 
   @@unique([vcs_vendor_code, jbs_jobscope_code, jbc_category], map: "vend_jbs_uq")
   @@index([vcs_vendor_code], map: "fk_reference_31")
+}
+
+model api_gen_template {
+  api_gen_template_id      Int           @id @default(autoincrement())
+  api_key                  String        @unique(map: "api_gen_template_uq01") @db.VarChar(250)
+  api_base_url             String        @db.VarChar(250)
+  api_output_type          String?       @db.VarChar(50)
+  api_gen_template_details Json?
+  createddate              DateTime?     @default(now()) @db.DateTime(0)
+  createdby                String?       @db.VarChar(250)
+  updateddate              DateTime?     @db.DateTime(0)
+  updatedby                String?       @db.VarChar(250)
+  api_data_path            String?       @db.VarChar(500)
+  api_gen_log              api_gen_log[]
+}
+
+model api_gen_log {
+  agl_api_gen_log_id Int              @id @default(autoincrement())
+  api_key            String           @db.VarChar(250)
+  agl_client_ip      String           @db.VarChar(50)
+  agl_client_browser String           @db.VarChar(50)
+  agl_session_id     String           @db.VarChar(150)
+  createddate        DateTime?        @default(now()) @db.DateTime(0)
+  createdby          String?          @db.VarChar(250)
+  updateddate        DateTime?        @db.DateTime(0)
+  updatedby          String?          @db.VarChar(250)
+  api_gen_template   api_gen_template @relation(fields: [api_key], references: [api_key], onUpdate: Restrict, map: "fk_api_gen_log_01")
+
+  @@index([api_key], map: "fk_api_gen_log_01")
 }

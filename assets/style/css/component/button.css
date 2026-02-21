@@ -1,323 +1,217 @@
-/* RS Button  */
+/* RS Button - Monochrome Compact Design */
 .button {
-  @apply w-fit rounded-lg flex justify-center items-center h-fit;
-  transition: all 0.2s ease;
+  @apply w-fit flex justify-center items-center h-fit font-medium;
+  border-radius: var(--rounded-btn, 0.25rem);
+  padding: var(--padding-btn, 0.375rem 0.75rem);
+  transition: all 0.15s ease;
   position: relative;
   overflow: hidden;
+  font-size: var(--font-size-sm, 0.75rem);
+  letter-spacing: -0.01em;
 }
 
-/* Enhanced hover effect with slight 3D transition */
+/* Clean hover - subtle lift */
 .button[class*="button-"]:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .button[class*="button-"]:active {
-  transform: translateY(0px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .button[class*="button-"]:disabled {
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-/* Primary Button - Blue with yellow accent */
+/* Primary Button - Clean solid */
 .button.button-primary {
   @apply bg-primary text-white;
-  box-shadow: 0 2px 4px rgba(var(--color-primary), 0.3), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(var(--color-primary), 0.8);
+  border: 1px solid rgb(var(--color-primary));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.button.button-primary:hover::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background-color: rgb(var(--active-menu-border));
-  animation: slide-in 0.3s ease forwards;
-}
-
-@keyframes slide-in {
-  0% { transform: scaleX(0); opacity: 0; }
-  100% { transform: scaleX(1); opacity: 1; }
+.button.button-primary:hover {
+  background-color: rgba(var(--color-primary), 0.9);
 }
 
 .button.button-secondary {
   @apply bg-secondary text-white;
-  box-shadow: 0 2px 4px rgba(var(--color-secondary), 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(var(--color-secondary), 0.8);
+  border: 1px solid rgb(var(--color-secondary));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.button.button-secondary:hover {
+  background-color: rgba(var(--color-secondary), 0.9);
 }
 
 .button.button-success {
   @apply bg-success text-white;
-  box-shadow: 0 2px 4px rgba(var(--color-success), 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(var(--color-success), 0.8);
+  border: 1px solid rgb(var(--color-success));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.button.button-success:hover {
+  background-color: rgba(var(--color-success), 0.9);
 }
 
 .button.button-info {
   @apply bg-info text-white;
-  box-shadow: 0 2px 4px rgba(var(--color-info), 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(var(--color-info), 0.8);
+  border: 1px solid rgb(var(--color-info));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.button.button-info:hover {
+  background-color: rgba(var(--color-info), 0.9);
 }
 
 .button.button-warning {
   @apply bg-warning text-white;
-  box-shadow: 0 2px 4px rgba(var(--color-warning), 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(var(--color-warning), 0.8);
+  border: 1px solid rgb(var(--color-warning));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.button.button-warning:hover {
+  background-color: rgba(var(--color-warning), 0.9);
 }
 
 .button.button-danger {
   @apply bg-danger text-white;
-  box-shadow: 0 2px 4px rgba(var(--color-danger), 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(var(--color-danger), 0.8);
+  border: 1px solid rgb(var(--color-danger));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* Updated outline buttons */
+.button.button-danger:hover {
+  background-color: rgba(var(--color-danger), 0.9);
+}
+
+/* Outline buttons - Clean minimal style */
 .button[class*="outline-"]:disabled {
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .button.outline-primary {
-  @apply border border-primary text-primary;
-  box-shadow: 0 1px 3px rgba(var(--color-primary), 0.1);
+  @apply border border-primary text-primary bg-transparent;
 }
 
 .button.outline-primary:hover {
   @apply bg-primary/5;
-  box-shadow: 0 3px 6px rgba(var(--color-primary), 0.2);
-  transform: translateY(-1px);
 }
 
 .button.outline-secondary {
-  @apply border border-secondary text-secondary;
-  box-shadow: 0 1px 3px rgba(var(--color-secondary), 0.1);
+  @apply border border-secondary text-secondary bg-transparent;
 }
 
 .button.outline-secondary:hover {
   @apply bg-secondary/5;
-  box-shadow: 0 3px 6px rgba(var(--color-secondary), 0.2);
-  transform: translateY(-1px);
 }
 
 .button.outline-success {
-  @apply border border-success text-success;
-  box-shadow: 0 1px 3px rgba(var(--color-success), 0.1);
+  @apply border border-success text-success bg-transparent;
 }
 
 .button.outline-success:hover {
   @apply bg-success/5;
-  box-shadow: 0 3px 6px rgba(var(--color-success), 0.2);
-  transform: translateY(-1px);
 }
 
 .button.outline-info {
-  @apply border border-info text-info;
-  box-shadow: 0 1px 3px rgba(var(--color-info), 0.1);
+  @apply border border-info text-info bg-transparent;
 }
 
 .button.outline-info:hover {
   @apply bg-info/5;
-  box-shadow: 0 3px 6px rgba(var(--color-info), 0.2);
-  transform: translateY(-1px);
 }
 
 .button.outline-warning {
-  @apply border border-warning text-warning;
-  box-shadow: 0 1px 3px rgba(var(--color-warning), 0.1);
+  @apply border border-warning text-warning bg-transparent;
 }
 
 .button.outline-warning:hover {
   @apply bg-warning/5;
-  box-shadow: 0 3px 6px rgba(var(--color-warning), 0.2);
-  transform: translateY(-1px);
 }
 
 .button.outline-danger {
-  @apply border border-danger text-danger;
-  box-shadow: 0 1px 3px rgba(var(--color-danger), 0.1);
+  @apply border border-danger text-danger bg-transparent;
 }
 
 .button.outline-danger:hover {
   @apply bg-danger/5;
-  box-shadow: 0 3px 6px rgba(var(--color-danger), 0.2);
-  transform: translateY(-1px);
 }
 
-.button[class*="text-"]:disabled {
-  opacity: 0.3;
+/* Text buttons - Ghost style */
+.button[class*="texts-"]:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .button.texts-primary {
-  @apply text-primary;
-  position: relative;
+  @apply text-primary bg-transparent;
 }
 
 .button.texts-primary:hover {
-  @apply bg-primary/10;
-}
-
-.button.texts-primary:after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 2px;
-  bottom: 0;
-  left: 0;
-  background-color: rgb(var(--color-primary));
-  transition: width 0.3s ease;
-}
-
-.button.texts-primary:hover:after {
-  width: 100%;
+  @apply bg-primary/5;
 }
 
 .button.texts-secondary {
-  @apply text-secondary;
-  position: relative;
+  @apply text-secondary bg-transparent;
 }
 
 .button.texts-secondary:hover {
-  @apply bg-secondary/10;
-}
-
-.button.texts-secondary:after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 2px;
-  bottom: 0;
-  left: 0;
-  background-color: rgb(var(--color-secondary));
-  transition: width 0.3s ease;
-}
-
-.button.texts-secondary:hover:after {
-  width: 100%;
+  @apply bg-secondary/5;
 }
 
 .button.texts-success {
-  @apply text-success;
-  position: relative;
+  @apply text-success bg-transparent;
 }
 
 .button.texts-success:hover {
-  @apply bg-success/10;
-}
-
-.button.texts-success:after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 2px;
-  bottom: 0;
-  left: 0;
-  background-color: rgb(var(--color-success));
-  transition: width 0.3s ease;
-}
-
-.button.texts-success:hover:after {
-  width: 100%;
+  @apply bg-success/5;
 }
 
 .button.texts-info {
-  @apply text-info;
-  position: relative;
+  @apply text-info bg-transparent;
 }
 
 .button.texts-info:hover {
-  @apply bg-info/10;
-}
-
-.button.texts-info:after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 2px;
-  bottom: 0;
-  left: 0;
-  background-color: rgb(var(--color-info));
-  transition: width 0.3s ease;
-}
-
-.button.texts-info:hover:after {
-  width: 100%;
+  @apply bg-info/5;
 }
 
 .button.texts-warning {
-  @apply text-warning;
-  position: relative;
+  @apply text-warning bg-transparent;
 }
 
 .button.texts-warning:hover {
-  @apply bg-warning/10;
-}
-
-.button.texts-warning:after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 2px;
-  bottom: 0;
-  left: 0;
-  background-color: rgb(var(--color-warning));
-  transition: width 0.3s ease;
-}
-
-.button.texts-warning:hover:after {
-  width: 100%;
+  @apply bg-warning/5;
 }
 
 .button.texts-danger {
-  @apply text-danger;
-  position: relative;
+  @apply text-danger bg-transparent;
 }
 
 .button.texts-danger:hover {
-  @apply bg-danger/10;
+  @apply bg-danger/5;
 }
 
-.button.texts-danger:after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 2px;
-  bottom: 0;
-  left: 0;
-  background-color: rgb(var(--color-danger));
-  transition: width 0.3s ease;
-}
-
-.button.texts-danger:hover:after {
-  width: 100%;
-}
-
+/* Button Sizes - Compact */
 .button-sm {
-  @apply text-xs;
-  padding: var(--padding-btn);
+  font-size: 0.6875rem; /* 11px */
+  padding: 0.25rem 0.5rem; /* 4px 8px */
   line-height: 1.4;
 }
 
 .button-md {
-  @apply text-sm;
-  padding: var(--padding-btn);
-  line-height: 1.5;
+  font-size: 0.75rem; /* 12px */
+  padding: 0.375rem 0.75rem; /* 6px 12px */
+  line-height: 1.4;
 }
 
 .button-lg {
-  @apply text-base;
-  padding: var(--padding-btn);
-  line-height: 1.6;
+  font-size: 0.8125rem; /* 13px */
+  padding: 0.5rem 1rem; /* 8px 16px */
+  line-height: 1.5;
 }

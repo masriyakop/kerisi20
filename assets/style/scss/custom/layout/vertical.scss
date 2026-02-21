@@ -30,7 +30,7 @@ $xlarge: 1280px;
   }
 }
 
-// Layout Vertical CSS
+// Layout Vertical CSS - Light Compact Style
 .v-layout {
   .content-page {
     height: 100%;
@@ -40,39 +40,44 @@ $xlarge: 1280px;
     position: fixed;
     display: flex;
     align-items: center;
-    height: 64px;
+    height: 40px;
   }
 
   .w-header,
   .w-header-search {
-    width: calc(100% - 256px);
+    width: calc(100% - 200px); // Light sidebar width
 
     @media screen and (max-width: $medium) {
       width: 100%;
     }
   }
 
-  .vertical-menu {
+  .vertical-menu,
+  .wp-admin-menu {
     left: 0;
   }
 
   .content-page {
-    margin-left: 256px;
-    padding: 4rem 1rem 0.5rem 1rem; /* Reduced from 6rem 2rem 10px 2rem */
+    margin-left: 200px; // Light sidebar width
+    padding: 44px 16px 16px 16px;
+    background: #f9fafb;
+    min-height: 100vh;
 
     @media screen and (max-width: $medium) {
       margin-left: 0px;
-      padding: 4rem 0.75rem 0.5rem 0.75rem; /* Reduced from 6rem 1.25rem 0 1.25rem */
+      padding: 44px 8px 8px 8px;
     }
   }
 
   &.menu-hide {
-    .w-header {
-      width: calc(100% - 0px);
+    .w-header,
+    .w-header-search {
+      width: 100%;
     }
 
-    .vertical-menu {
-      left: -260px;
+    .vertical-menu,
+    .wp-admin-menu {
+      left: -205px;
     }
 
     .content-page {
@@ -80,66 +85,10 @@ $xlarge: 1280px;
     }
   }
 
-  .menu-content,
-  .menu-content-child {
-    max-height: 1000px;
-    overflow: hidden;
-    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, transform 0.3s ease;
-    opacity: 1;
-    transform: translateY(0);
-
-    &.hide {
-      max-height: 0px;
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-  }
-
-  .menu-content-max,
-  .menu-content-child-max {
-    max-height: 100vh;
-  }
-
-  svg.side-menu-arrow {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    transform: rotate(0deg); /* Default: point down when menu is closed */
-  }
-
-  .nav-open {
-    svg.side-menu-arrow {
-      transform: rotate(180deg) !important; /* Rotate to point up when menu is open */
-    }
-  }
-  
-  /* Ensure arrow points down when menu is closed (no nav-open class) */
-  a:not(.nav-open) svg.side-menu-arrow {
-    transform: rotate(0deg) !important;
-  }
-  
-  // Active menu - light grey background with black text
+  // Light-style active menu
   .active-menu {
-    background-color: #d1d5db !important; /* gray-300 */
-    color: #000000 !important; /* black text */
-    
-    // Make icons white in active menu
-    svg,
-    .icon,
-    [class*="icon"] {
-      color: #ffffff !important;
-    }
-  }
-  
-  // Inactive menu items - white background with black text
-  .navigation-item-wrapper {
-    a:not(.active-menu),
-    .nuxt-link-active:not(.active-menu) {
-      background-color: #ffffff !important;
-      color: #000000 !important;
-      
-      &:hover {
-        background-color: rgba(255, 255, 255, 0.9) !important;
-      }
-    }
+    color: #2563eb !important;
+    font-weight: 600;
   }
 }
 

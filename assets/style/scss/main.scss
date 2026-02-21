@@ -58,3 +58,8 @@ code {
 
 // Compact UI Styles
 @import "./custom/compact-ui";
+
+/* Bootstrap-compatible d-none utility (display: none) - used by page generator, dt_class, etc. */
+.d-none {
+  display: none !important;
+}

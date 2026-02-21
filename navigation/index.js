@@ -15,7 +15,7 @@ export default [
             "child": [
               {
                 "title": "Fund Type",
-                "path": "/setup/glstructure/fundtype/fundtype",
+                "path": "/setup/glstructure/fundtype",
                 "icon": "",
                 "child": []
               },
@@ -50,6 +50,13 @@ export default [
               {
                 "title": "Account Code",
                 "path": "/setup/account-code",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Account Code v2",
+                "path": "/setup/glstructure/account-code-v2",
                 "icon": "",
                 "child": [],
                 "meta": {}
@@ -969,6 +976,28 @@ export default [
                   {
                     "title": "Structure Budget List",
                     "path": "/page-editor/pengujianmuka/structurebudgetlist",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Sample FORM",
+                    "path": "/page-editor/pengujianmuka/sampleform",
+                    "icon": "",
+                    "child": [
+                      {
+                        "title": "01Cuba",
+                        "path": "/page-editor/pengujianmuka/sampleform/01cuba",
+                        "icon": "",
+                        "child": [],
+                        "meta": {}
+                      }
+                    ],
+                    "meta": {}
+                  },
+                  {
+                    "title": "01Cuba",
+                    "path": "/page-editor/pengujianmuka/01cuba",
                     "icon": "",
                     "child": [],
                     "meta": {}

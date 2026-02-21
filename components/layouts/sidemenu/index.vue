@@ -9,26 +9,19 @@ const userStore = useUserStore();
 
 // Add computed to ensure logo reactivity
 const logoToShow = computed(() => {
-  // Always try to use the siteLogo from settings first
   if (siteSettings.value?.siteLogo && siteSettings.value.siteLogo.trim() !== '') {
     return siteSettings.value.siteLogo;
   }
-  // Fallback to default logo if siteLogo is not set
   return '/img/logo/corradAF-logo.svg'; 
 });
 
 const siteNameToShow = computed(() => {
-  return siteSettings.value.siteName || 'Kerisi Lite';
+  return siteSettings.value.siteName || 'Kerisi';
 });
 
 // User info
 const userName = computed(() => {
-  return userStore.username || 'John Doe';
-});
-
-const userEmail = computed(() => {
-  // Try to get email from user store or use username as fallback
-  return userStore.email || (userStore.username ? `${userStore.username}@example.com` : 'user@example.com');
+  return userStore.username || 'Admin';
 });
 
 const userInitials = computed(() => {
@@ -39,7 +32,7 @@ const userInitials = computed(() => {
     }
     return userName.value.substring(0, 2).toUpperCase();
   }
-  return 'JD';
+  return 'AD';
 });
 
 const props = defineProps({
@@ -56,73 +49,102 @@ const props = defineProps({
 
 onMounted(() => {
   try {
-    const el = document.querySelector(".active-menu")?.closest(".menu-content");
+    const el = document.querySelector(".active-menu")?.closest(".wp-submenu");
     if (el) {
-      const elParent = el.parentElement.parentElement;
+      const elParent = el.parentElement;
       if (elParent) {
-        elParent.classList.remove("hide");
-        elParent.querySelector("a")?.classList.add("nav-open");
+        elParent.classList.add("wp-menu-open");
       }
-      el.classList.remove("hide");
     }
   } catch (e) {
-    // console.log(e);
     return;
   }
 });
 </script>
 
 <template>
-  <div class="vertical-menu flex flex-col h-screen" style="background-color: rgb(var(--bg-1));">
-    <!-- Logo Header -->
-    <div class="px-4 py-3 border-b" style="border-color: rgb(var(--border-color));">
-      <nuxt-link to="/" class="block">
-        <div class="flex items-center gap-3">
-          <div class="flex-shrink-0">
-            <div class="w-9 h-9 bg-gray-900 rounded flex items-center justify-center">
-              <img
-                v-if="logoToShow && logoToShow !== '/img/logo/corradAF-logo.svg'"
-                :src="logoToShow"
-                class="logo h-6 w-6 object-contain"
-                alt="logo"
-                @error="$event.target.src = '/img/logo/corradAF-logo.svg'"
-              />
-              <span v-else class="text-white font-bold text-lg">K</span>
-            </div>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="title-text app-title font-bold text-base leading-tight" style="color: rgb(var(--text-color));">
-              {{ siteNameToShow }}
-            </div>
-            <div class="text-xs leading-tight" style="color: rgb(var(--text-color)); opacity: 0.7;">Financial Management</div>
-          </div>
-        </div>
-      </nuxt-link>
-    </div>
-    
+  <div class="wp-admin-menu">
     <!-- Navigation Menu -->
-    <div class="flex-1 overflow-y-auto">
-      <div class="py-1">
-        <RSItem :items="menuItem"></RSItem>
-      </div>
+    <div class="wp-menu-scroll">
+      <RSItem :items="menuItem"></RSItem>
     </div>
     
-    <!-- User Profile Section -->
-    <div class="px-3 py-2.5 border-t" style="border-color: rgb(var(--border-color)); background-color: rgb(var(--bg-1));">
-      <div class="flex items-center gap-2.5">
-        <div class="flex-shrink-0">
-          <div class="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white font-semibold text-xs">
-            {{ userInitials }}
-          </div>
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-xs truncate leading-tight" style="color: rgb(var(--text-color));">{{ userName }}</div>
-          <div class="text-[10px] truncate leading-tight" style="color: rgb(var(--text-color)); opacity: 0.7;">{{ userEmail }}</div>
-        </div>
-        <button class="flex-shrink-0 p-1.5 rounded transition-colors hover:opacity-100" style="color: rgb(var(--text-color)); opacity: 0.7; --hover-bg: rgba(var(--text-color), 0.1);" @mouseenter="$event.target.style.backgroundColor = 'rgba(var(--text-color), 0.1)'" @mouseleave="$event.target.style.backgroundColor = 'transparent'">
-          <Icon name="material-symbols:open-in-new" size="16" />
-        </button>
-      </div>
+    <!-- Collapse Button - WordPress style -->
+    <div class="wp-collapse-menu">
+      <button class="wp-collapse-btn">
+        <Icon name="dashicons:arrow-left-alt2" size="20" />
+        <span>Collapse menu</span>
+      </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Light Compact Sidebar */
+.wp-admin-menu {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 200px;
+  background: #f8f9fa;
+  border-right: 1px solid #e5e7eb;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+}
+
+.wp-menu-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+  margin: 0;
+}
+
+/* Custom scrollbar */
+.wp-menu-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.wp-menu-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wp-menu-scroll::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.wp-menu-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Collapse Button */
+.wp-collapse-menu {
+  border-top: 1px solid #e5e7eb;
+  background: #f8f9fa;
+}
+
+.wp-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 10px;
+  color: #6b7280;
+  font-size: 11px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.1s;
+}
+
+.wp-collapse-btn:hover {
+  color: #2563eb;
+}
+
+.wp-collapse-btn span {
+  font-size: 11px;
+}
+</style>

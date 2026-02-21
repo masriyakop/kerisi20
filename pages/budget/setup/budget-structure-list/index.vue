@@ -13,9 +13,19 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
+const pageName = "Budget Structure List";
+const moduleName = "Budget";
+const pageBreadcrumbText = "Dashboard > Budget > Setup > Budget Structure List";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName,
+  moduleName,
+  pageBreadcrumbText,
+});
+
 // Table data
 const structureList = ref([]);
 const loading = ref(false);
+const datatableRef = ref(null);
 const pageSize = ref(10);
 const searchKeyword = ref("");
 
@@ -236,23 +246,35 @@ const handleAdd = () => {
   showStructureModal.value = true;
 };
 
-// Download PDF function
-const handleDownloadPDF = () => {
-  $swal.fire({
-    title: "Info",
-    text: "PDF download functionality will be implemented",
-    icon: "info",
-  });
-};
-
-// Download CSV function
-const handleDownloadCSV = () => {
-  $swal.fire({
-    title: "Info",
-    text: "CSV download functionality will be implemented",
-    icon: "info",
-  });
-};
+// Datatable features (Save/Load Template, Ungroup/Group, Generate API, Download PDF/CSV)
+const {
+  templateFileInputRef,
+  exportConfigRef,
+  isGrouped,
+  showGenerateApiModal,
+  apiOutputType,
+  generateApiLoading,
+  handleSaveTemplate,
+  handleLoadTemplate,
+  onTemplateFileChange,
+  handleGenerateApi,
+  handleGenerateApiProceed,
+  handleCloseGenerateApiModal,
+  handleUngroupList,
+  handleGroupList,
+  handleDownloadPDF,
+  handleDownloadCSV,
+} = useDatatableFeatures({
+  pageName: "Budget Structure List",
+  apiDataPath: "/api/budget/setup/budget-structure-list",
+  defaultExportColumns: ["Fund", "PTJ", "Cost Centre", "Activity", "Activity Description", "Budget Code", "Budget Code Description", "Deficit Budget", "Status", "Year"],
+  getFilteredList: () => filteredStructureList.value,
+  datatableRef,
+  searchKeyword,
+  smartFilter: topFilter,
+  applyFilters,
+  smartFilterLabels: { tf_year: "Year", tf_fund: "Fund", tf_ouncode: "PTJ", tf_costcentre: "Cost Centre", tf_activity: "Activity" },
+});
 
 const handleEdit = async (item) => {
   try {
@@ -299,6 +321,9 @@ const handleEdit = async (item) => {
 };
 
 const handleDelete = async (item) => {
+  const messageText = "Are you sure? Do you want to delete this budget structure?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: `Do you want to delete this budget structure?`,
@@ -309,6 +334,8 @@ const handleDelete = async (item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
@@ -373,13 +400,16 @@ const handleSave = async () => {
     });
 
     if (data.value?.statusCode === 200 || data.value?.statusCode === 201) {
+      const successMessage = isEditMode.value ? "Success. Budget Structure updated successfully" : "Success. Budget Structure is created successfully";
       $swal.fire({
         title: "Success",
-        text: isEditMode.value ? "Budget structure updated successfully" : "Budget structure created successfully",
+        text: successMessage,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
+      if (isEditMode.value) await logUpdateSuccess(successMessage, "Budget Structure updated");
+      else await logCreateSuccess(successMessage, "Budget Structure created");
       showStructureModal.value = false;
       await fetchStructures();
     } else {
@@ -486,9 +516,36 @@ const downloadCSV = () => {
     </rs-card>
 
     <!-- Budget Structure List -->
+    <input
+      ref="templateFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden"
+      @change="onTemplateFileChange"
+    />
     <rs-card>
       <template #header>
-        <div class="text-lg font-semibold">Budget Structure List</div>
+        <div class="flex justify-between items-center">
+          <div class="text-lg font-semibold">Budget Structure List</div>
+          <rs-dropdown
+            variant="secondary-text"
+            size="sm"
+            :hideChevron="true"
+            position="bottom"
+            textAlign="right"
+            itemSize="11rem"
+            class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+          >
+            <template #title>
+              <Icon name="mdi:dots-vertical" size="1rem" />
+            </template>
+            <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+            <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+            <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+            <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+            <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+          </rs-dropdown>
+        </div>
       </template>
       <template #body>
         <div class="space-y-4">
@@ -545,7 +602,9 @@ const downloadCSV = () => {
             </div>
             <rs-table
               v-else
-              :key="`budget-structure-table-${searchKeyword || 'all'}-${pageSize}`"
+              ref="datatableRef"
+              :exportConfigRef="exportConfigRef"
+              :key="`budget-structure-table`"
               :data="filteredStructureList"
               :field="['no', 'Fund', 'PTJ', 'Cost Centre', 'Activity', 'Activity Description', 'Budget Code', 'Budget Code Description', 'Deficit Budget', 'Status', 'Year', 'Action']"
               :options="{
@@ -562,6 +621,11 @@ const downloadCSV = () => {
               }"
               advanced
               :pageSize="pageSize"
+              :hideTableSearch="true"
+              :hideTablePageSize="true"
+              :columnMovable="true"
+              :columnHideShow="true"
+              :columnGroupingList="isGrouped"
             >
               <template v-slot:no="data">{{ data.value.no }}</template>
               <template v-slot:Fund="data">{{ data.value.Fund }}</template>
@@ -646,6 +710,43 @@ const downloadCSV = () => {
         </div>
       </template>
     </rs-card>
+
+    <!-- Generate API Modal -->
+    <rs-modal
+      v-model="showGenerateApiModal"
+      title="Generate API"
+      size="md"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Output Type</label>
+            <FormKit
+              v-model="apiOutputType"
+              type="select"
+              :options="[
+                { label: 'JSON', value: 'JSON' },
+                { label: 'PDF', value: 'PDF' },
+                { label: 'CSV', value: 'CSV' },
+                { label: 'EXCEL', value: 'EXCEL' },
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            A unique API key will be generated. Use the URL to access data in the selected format. JSON and PDF display in browser; CSV and Excel download.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <rs-button variant="secondary" @click="handleCloseGenerateApiModal">Cancel</rs-button>
+          <rs-button variant="primary" :disabled="generateApiLoading" @click="handleGenerateApiProceed">
+            {{ generateApiLoading ? 'Generating...' : 'Proceed' }}
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
 
     <!-- Add/Edit Budget Structure Modal -->
     <rs-modal

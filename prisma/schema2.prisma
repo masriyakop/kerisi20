@@ -24,6 +24,7 @@ model adm_message_log {
   ml_resolveddate      DateTime?          @db.DateTime(0)
   ml_module_name       String?            @db.VarChar(100)
   ml_page_breadcrumb   String?            @db.VarChar(250)
+  ml_mesg_desc         String?            @db.VarChar(500)
   createddate          DateTime           @default(now()) @db.DateTime(0)
   createdby            String             @db.VarChar(255)
   updateddate          DateTime?          @default(now()) @db.DateTime(0)
@@ -225,4 +226,50 @@ model wf_workflow_master {
   updateddate              DateTime?             @db.DateTime(0)
   updatedby                String?               @db.VarChar(100)
   wf_workflow_details      wf_workflow_details[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model lookup_details_adm {
+  lde_id             Int               @id @default(autoincrement())
+  lma_code_name      String            @db.VarChar(20)
+  lde_group          String?           @db.VarChar(50)
+  lde_value          String            @db.VarChar(150)
+  lde_value2         String?           @db.VarChar(50)
+  lde_description    String            @db.VarChar(250)
+  lde_description2   String?           @db.VarChar(250)
+  lde_status         String?           @db.VarChar(20)
+  lde_sorting        Int?
+  lde_extended_field Json?
+  createddate        DateTime?         @default(now()) @db.DateTime(0)
+  createdby          String?           @db.VarChar(250)
+  updateddate        DateTime?         @db.DateTime(0)
+  updatedby          String?           @db.VarChar(250)
+  lde_m_id           Int?
+  lookup_master_adm  lookup_master_adm @relation(fields: [lma_code_name], references: [lma_code_name], onUpdate: Restrict, map: "fk_reference_21")
+
+  @@unique([lma_code_name, lde_group, lde_value], map: "un_lookup_details_01")
+  @@index([lma_code_name], map: "fk_reference_21")
+  @@index([lma_code_name, lde_value], map: "idx_lookup_details_02")
+}
+
+model lookup_master_adm {
+  lma_code_name      String               @id @db.VarChar(20)
+  lma_description    String               @db.VarChar(250)
+  lma_status         String?              @db.VarChar(45)
+  createddate        DateTime?            @default(now()) @db.DateTime(0)
+  createdby          String?              @db.VarChar(250)
+  updateddate        DateTime?            @db.DateTime(0)
+  updatedby          String?              @db.VarChar(250)
+  lookup_details_adm lookup_details_adm[]
+}
+
+model ai_chat_log {
+  ail_chat_log_id  Int       @id @default(autoincrement())
+  ail_chat_title   String    @db.VarChar(250)
+  ail_session_id   String?   @db.VarChar(250)
+  ail_chat_details Json?
+  createddate      DateTime? @default(now()) @db.DateTime(0)
+  createdby        String?   @db.VarChar(250)
+  updateddate      DateTime? @db.DateTime(0)
+  updatedby        String?   @db.VarChar(250)
 }

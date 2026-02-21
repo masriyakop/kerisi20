@@ -21,5 +21,6 @@ const layoutType = themeStore.layoutType;
         <slot />
       </RSHorizontal>
     </div>
+    <AIChatPopup />
   </div>
 </template>

@@ -158,6 +158,31 @@ export default function () {
         },
       ],
     },
+    {
+      theme: "monochrome",
+      colors: [
+        {
+          name: "primary",
+          value: "24, 24, 27", // zinc-900 - Near black
+        },
+        {
+          name: "secondary",
+          value: "63, 63, 70", // zinc-700 - Dark gray
+        },
+        {
+          name: "accent",
+          value: "244, 244, 245", // zinc-100 - Light gray
+        },
+        {
+          name: "background",
+          value: "250, 250, 250", // zinc-50 - Page background
+        },
+        {
+          name: "text",
+          value: "24, 24, 27", // zinc-900 - Primary text
+        },
+      ],
+    },
   ];
 }
  

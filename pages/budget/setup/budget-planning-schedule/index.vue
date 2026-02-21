@@ -13,9 +13,19 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
+const pageName = "Budget Planning Schedule";
+const moduleName = "Budget";
+const pageBreadcrumbText = "Dashboard > Budget > Setup > Budget Planning Schedule";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName,
+  moduleName,
+  pageBreadcrumbText,
+});
+
 // Table data
 const scheduleList = ref([]);
 const loading = ref(false);
+const datatableRef = ref(null);
 const pageSize = ref(10);
 const searchKeyword = ref("");
 const topFilterYear = ref(new Date().getFullYear().toString());
@@ -198,23 +208,36 @@ const handleAdd = () => {
   showScheduleModal.value = true;
 };
 
-// Download PDF function
-const handleDownloadPDF = () => {
-  $swal.fire({
-    title: "Info",
-    text: "PDF download functionality will be implemented",
-    icon: "info",
-  });
-};
-
-// Download CSV function
-const handleDownloadCSV = () => {
-  $swal.fire({
-    title: "Info",
-    text: "CSV download functionality will be implemented",
-    icon: "info",
-  });
-};
+// Datatable features (Save/Load Template, Ungroup/Group, Generate API, Download PDF/CSV)
+const {
+  templateFileInputRef,
+  exportConfigRef,
+  isGrouped,
+  showGenerateApiModal,
+  apiOutputType,
+  generateApiLoading,
+  handleSaveTemplate,
+  handleLoadTemplate,
+  onTemplateFileChange,
+  handleGenerateApi,
+  handleGenerateApiProceed,
+  handleCloseGenerateApiModal,
+  handleUngroupList,
+  handleGroupList,
+  handleDownloadPDF,
+  handleDownloadCSV,
+} = useDatatableFeatures({
+  pageName: "Budget Planning Schedule",
+  apiDataPath: "/api/budget/setup/budget-planning-schedule",
+  defaultExportColumns: ["Budget Year", "Planning Date", "Status"],
+  getFilteredList: () => filteredScheduleList.value,
+  datatableRef,
+  searchKeyword,
+  smartFilter: ref({}),
+  applyFilters,
+  smartFilterLabels: {},
+  smartFilterOptionsLookup: {},
+});
 
 // Edit function
 const handleEdit = async (item) => {
@@ -278,6 +301,9 @@ const handleDelete = async (item) => {
     return;
   }
 
+  const messageText = `Are you sure? Do you want to delete schedule for year "${item.bps_year_budget}"?`;
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: `Do you want to delete schedule for year "${item.bps_year_budget}"?`,
@@ -288,6 +314,8 @@ const handleDelete = async (item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
@@ -351,13 +379,16 @@ const handleSave = async () => {
     });
 
     if (data.value?.statusCode === 200 || data.value?.statusCode === 201) {
+      const successMessage = data.value.message || (isEditMode.value ? "Success. Budget Planning Schedule updated successfully" : "Success. Budget Planning Schedule is created successfully");
       $swal.fire({
         title: "Success",
-        text: data.value.message || (isEditMode.value ? "Schedule updated successfully" : "Schedule created successfully"),
+        text: successMessage,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
+      if (isEditMode.value) await logUpdateSuccess(successMessage, "Budget Planning Schedule updated");
+      else await logCreateSuccess(successMessage, "Budget Planning Schedule created");
       showScheduleModal.value = false;
       await fetchSchedules();
     } else {
@@ -416,9 +447,36 @@ const handleCancelSchedule = () => {
     </rs-card>
 
     <!-- Listing Schedule -->
+    <input
+      ref="templateFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden"
+      @change="onTemplateFileChange"
+    />
     <rs-card>
       <template #header>
-        <div class="text-lg font-semibold">Budget Planning Schedule</div>
+        <div class="flex justify-between items-center">
+          <div class="text-lg font-semibold">Budget Planning Schedule</div>
+          <rs-dropdown
+            variant="secondary-text"
+            size="sm"
+            :hideChevron="true"
+            position="bottom"
+            textAlign="right"
+            itemSize="11rem"
+            class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+          >
+            <template #title>
+              <Icon name="mdi:dots-vertical" size="1rem" />
+            </template>
+            <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+            <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+            <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+            <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+            <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+          </rs-dropdown>
+        </div>
       </template>
       <template #body>
         <div class="space-y-4">
@@ -475,7 +533,9 @@ const handleCancelSchedule = () => {
             </div>
             <rs-table
               v-else
-              :key="`budget-planning-schedule-table-${searchKeyword || 'all'}-${pageSize}`"
+              ref="datatableRef"
+              :exportConfigRef="exportConfigRef"
+              :key="`budget-planning-schedule-table`"
               :data="filteredScheduleList"
               :field="['no', 'Budget Year', 'Planning Date', 'Status', 'Action']"
               :options="{
@@ -492,6 +552,11 @@ const handleCancelSchedule = () => {
               }"
               advanced
               :pageSize="pageSize"
+              :hideTableSearch="true"
+              :hideTablePageSize="true"
+              :columnMovable="true"
+              :columnHideShow="true"
+              :columnGroupingList="isGrouped"
             >
               <template v-slot:no="data">{{ data.value.no }}</template>
               <template v-slot:BudgetYear="data">{{ data.value['Budget Year'] }}</template>
@@ -571,6 +636,43 @@ const handleCancelSchedule = () => {
         </div>
       </template>
     </rs-card>
+
+    <!-- Generate API Modal -->
+    <rs-modal
+      v-model="showGenerateApiModal"
+      title="Generate API"
+      size="md"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Output Type</label>
+            <FormKit
+              v-model="apiOutputType"
+              type="select"
+              :options="[
+                { label: 'JSON', value: 'JSON' },
+                { label: 'PDF', value: 'PDF' },
+                { label: 'CSV', value: 'CSV' },
+                { label: 'EXCEL', value: 'EXCEL' },
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            A unique API key will be generated. Use the URL to access data in the selected format. JSON and PDF display in browser; CSV and Excel download.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <rs-button variant="secondary" @click="handleCloseGenerateApiModal">Cancel</rs-button>
+          <rs-button variant="primary" :disabled="generateApiLoading" @click="handleGenerateApiProceed">
+            {{ generateApiLoading ? 'Generating...' : 'Proceed' }}
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
 
     <!-- Add/Edit Budget Planning Schedule Modal -->
     <rs-modal

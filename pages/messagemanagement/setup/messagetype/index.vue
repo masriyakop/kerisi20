@@ -1,4 +1,6 @@
 <script setup>
+import { useMessageLog } from "~/composables/useMessageLog";
+
 definePageMeta({
   title: "Message Type",
   middleware: ["auth"],
@@ -13,17 +15,31 @@ definePageMeta({
     "path": "/messagemanagement/setup"
   },
   {
-    "name": "Message Type",
+    "name": "Messagetype",
     "path": "/messagemanagement/setup/messagetype"
+  },
+  {
+    "name": "Message Type",
+    "path": "/messagemanagement/setup/messagetype/messagetype"
   }
 ],
 });
 
 const { $swal } = useNuxtApp();
 
+const pageNameForLog = "Message Type";
+const moduleNameForLog = "Messagetype";
+const pageBreadcrumbTextForLog = "Messagemanagement > Setup > Messagetype > Message Type";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName: pageNameForLog,
+  moduleName: moduleNameForLog,
+  pageBreadcrumbText: pageBreadcrumbTextForLog,
+});
+
 // Table data
 const messagetypeList = ref([]);
 const loading = ref(false);
+const datatableRef = ref(null);
 
 // Search and filter state
 const searchKeyword = ref("");
@@ -45,6 +61,16 @@ const originalFilter = ref({});
 // Top Filter state
 const topFilter = ref({});
 
+// Smart Filter labels for export (field key -> display label)
+// Smart Filter options mapping for export (field key -> options variable name for dropdown/radio/checkbox/listbox)
+const smartFilterLabels = {"Code_filter":"Code","Description_filter":"Description","Status_filter":"Status"};
+const smartFilterOptionsMap = {"Status_filter":"StatusOptions"};
+
+// Top Filter labels for export (field key -> display label)
+// Top Filter options mapping for export (field key -> options variable name for dropdown/radio/checkbox/listbox)
+// No top filter labels
+// No top filter options mapping
+
 // Form data
 const messagetypeForm = ref({});
 
@@ -63,14 +89,63 @@ const getLookupLabel = (options, value) => {
   return option ? option.label : value;
 };
 
-// Fetch data function
+// Helper function to format date to DD/MM/YYYY
+const formatDate = (value) => {
+  if (!value) return '-';
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '-';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    return '-';
+  }
+};
+
+// Helper function to format datetime to DD/MM/YYYY HH:MI:SS AM/PM
+const formatDateTime = (value) => {
+  if (!value) return '-';
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '-';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = String(hours % 12 || 12).padStart(2, '0');
+    return `${day}/${month}/${year} ${displayHours}:${minutes}:${seconds} ${ampm}`;
+  } catch (error) {
+    return '-';
+  }
+};
+
+// Helper function to format date to YYYY-MM-DD for HTML date input
+const formatDateForInput = (value) => {
+  if (!value) return '';
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    return '';
+  }
+};
+
+
+// Fetch data function - fetches all data, rs-table handles pagination client-side
 const fetchData = async () => {
   try {
     loading.value = true;
     const query = {
       ...topFilter.value,
-      page: 1,
-      pageSize: pageSize.value,
     };
 
     // Remove empty values
@@ -210,309 +285,39 @@ const handleFilterClose = () => {
   showSmartFilter.value = false;
 };
 
-// Download PDF function
-const handleDownloadPDF = async () => {
-  try {
-    // Import jsPDF and jspdf-autotable dynamically
-    const { default: jsPDF } = await import('jspdf');
-    const autoTable = (await import('jspdf-autotable')).default;
-    
-    // Get current filtered data
-    let dataToExport = [...filteredMessagetypeList.value];
-    
-    if (dataToExport.length === 0) {
-      $swal.fire({
-        title: "No Data",
-        text: "There is no data to export",
-        icon: "warning",
-      });
-      return;
-    }
-    
-    // Create PDF document
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
-    
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 10;
-    const logoSize = 12;
-    const logoY = margin;
-    const logoX = margin;
-    
-    // Format current date and time: Date : 05/05/2025 11:25:02 AM
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = now.getFullYear();
-    const hours = now.getHours();
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    const formattedDateTime = `Date : ${day}/${month}/${year} ${String(displayHours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
-    
-    // Add logo on top left
-    let logoHeight = 0;
-    try {
-      const logoUrl = '/img/logo/organization_logo.png';
-      const response = await fetch(logoUrl);
-      if (response.ok) {
-        const blob = await response.blob();
-        const logoData = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error('Failed to read logo file'));
-          reader.readAsDataURL(blob);
-        });
-        
-        const img = await new Promise((resolve, reject) => {
-          const image = new Image();
-          image.onload = () => resolve(image);
-          image.onerror = () => reject(new Error('Failed to load image'));
-          image.src = logoData;
-        });
-        
-        const aspectRatio = img.width / img.height;
-        logoHeight = logoSize;
-        const logoWidth = logoSize * aspectRatio;
-        doc.addImage(logoData, 'PNG', logoX, logoY, logoWidth, logoHeight);
-      }
-    } catch (error) {
-      console.error('Error loading logo:', error);
-      logoHeight = 0;
-    }
-    
-    // Add date and time at top right
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(0, 0, 0);
-    const dateTimeWidth = doc.getTextWidth(formattedDateTime);
-    const dateTimeX = pageWidth - margin - dateTimeWidth;
-    const dateTimeY = margin + 8;
-    doc.text(formattedDateTime, dateTimeX, dateTimeY);
-    
-    // Add title in the center
-    const title = "Message Type";
-    const titleFontSize = 16;
-    doc.setFontSize(titleFontSize);
-    doc.setFont(undefined, 'bold');
-    const titleWidth = doc.getTextWidth(title);
-    const titleX = (pageWidth - titleWidth) / 2;
-    const titleY = margin + (logoHeight > 0 ? logoHeight + 3 : 10);
-    doc.text(title, titleX, titleY);
-    
-    // Prepare table data
-    const exportColumns = ["Code","Description","Status"];
-    const columnToOptionsMap = {"Status":"StatusOptions"};
-    
-    // Build options lookup object for dropdown/radio/checkbox/listbox columns
-    const columnOptionsLookup = {};
-    columnOptionsLookup["Status"] = StatusOptions.value;
-    
-    const tableData = dataToExport.map((item, index) => {
-      const row = [(index + 1).toString()];
-      exportColumns.forEach((col) => {
-        // Check if this column has a lookup (dropdown/radio/checkbox/listbox)
-        const options = columnOptionsLookup[col];
-        if (options) {
-          // Use getLookupLabel to convert value to label
-          const label = getLookupLabel(options, item[col]);
-          row.push((label || '').toString());
-        } else {
-          row.push((item[col] || '').toString());
-        }
-      });
-      return row;
-    });
-    
-    // Add table
-    autoTable(doc, {
-      head: [['No.', ...exportColumns]],
-      body: tableData,
-      startY: titleY + 8,
-      margin: { left: margin, right: margin },
-      styles: {
-        fontSize: 9,
-        cellPadding: 2,
-        textColor: [0, 0, 0],
-      },
-      headStyles: {
-        fillColor: [59, 130, 246],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        halign: 'center',
-      },
-      bodyStyles: {
-        halign: 'left',
-      },
-      columnStyles: {
-        0: { halign: 'center', cellWidth: 15 },
-      },
-      alternateRowStyles: {
-        fillColor: [245, 245, 245],
-      },
-      didDrawPage: (data) => {
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
-        doc.setTextColor(0, 0, 0);
-        const dateTimeWidth = doc.getTextWidth(formattedDateTime);
-        const dateTimeX = pageWidth - margin - dateTimeWidth;
-        const dateTimeY = margin + 8;
-        doc.text(formattedDateTime, dateTimeX, dateTimeY);
-      },
-    });
-    
-    // Save PDF
-    const fileName = `Message_Type_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
-    
-    $swal.fire({
-      title: "Success",
-      text: "PDF downloaded successfully",
-      icon: "success",
-      timer: 2000,
-      showConfirmButton: false,
-    });
-  } catch (error) {
-    console.error("Error generating PDF:", error);
-    $swal.fire({
-      title: "Error",
-      text: "Failed to generate PDF. Please try again.",
-      icon: "error",
-    });
-  }
-};
-// Download CSV function
-const handleDownloadCSV = () => {
-  try {
-    // Get current filtered data
-    let dataToExport = [...filteredMessagetypeList.value];
-    
-    if (dataToExport.length === 0) {
-      $swal.fire({
-        title: "No Data",
-        text: "There is no data to export",
-        icon: "warning",
-      });
-      return;
-    }
-    
-    // Format current date and time: Date : 05/05/2025 11:25:02 AM
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = now.getFullYear();
-    const hours = now.getHours();
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    const formattedDateTime = `Date : ${day}/${month}/${year} ${String(displayHours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
-    
-    // Helper function to escape CSV field
-    const escapeCSVField = (field) => {
-      if (field === null || field === undefined) return '';
-      const str = String(field);
-      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-    
-    // CSV Headers
-    const exportColumns = ["Code","Description","Status"];
-    const columnToOptionsMap = {"Status":"StatusOptions"};
-    const headers = ['No.', ...exportColumns];
-    
-    // Build options lookup object for dropdown/radio/checkbox/listbox columns
-    const columnOptionsLookup = {};
-    columnOptionsLookup["Status"] = StatusOptions.value;
-    
-    // Build CSV content
-    let csvContent = '';
-    csvContent += escapeCSVField(formattedDateTime) + '\n';
-    csvContent += escapeCSVField("Message Type") + '\n';
-    
-    // Add search keyword if any
-    if (searchKeyword.value && searchKeyword.value.trim() !== '') {
-      csvContent += escapeCSVField(`Search: ${searchKeyword.value.trim()}`) + '\n';
-    }
-    
-    // Add smart filter values if any
-    const activeFilters = [];
-    Object.keys(smartFilter.value).forEach((key) => {
-      if (smartFilter.value[key] && String(smartFilter.value[key]).trim() !== '') {
-        const fieldName = key.replace(/_filter$/, "");
-        activeFilters.push(`${fieldName}: ${String(smartFilter.value[key]).trim()}`);
-      }
-    });
-    
-    if (activeFilters.length > 0) {
-      activeFilters.forEach(filter => {
-        csvContent += escapeCSVField(filter) + '\n';
-      });
-    }
-    
-    // Add blank line if there are filters or search
-    if ((searchKeyword.value && searchKeyword.value.trim() !== '') || activeFilters.length > 0) {
-      csvContent += '\n';
-    }
-    
-    // Add headers
-    csvContent += headers.map(escapeCSVField).join(',') + '\n';
-    
-    // Add data rows
-    dataToExport.forEach((item, index) => {
-      const row = [(index + 1).toString()];
-      exportColumns.forEach((col) => {
-        // Check if this column has a lookup (dropdown/radio/checkbox/listbox)
-        const options = columnOptionsLookup[col];
-        if (options) {
-          // Use getLookupLabel to convert value to label
-          const label = getLookupLabel(options, item[col]);
-          row.push(label || '');
-        } else {
-          row.push(item[col] || '');
-        }
-      });
-      csvContent += row.map(escapeCSVField).join(',') + '\n';
-    });
-    
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Message_Type_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    URL.revokeObjectURL(url);
-    
-    $swal.fire({
-      title: "Success",
-      text: "CSV downloaded successfully",
-      icon: "success",
-      timer: 2000,
-      showConfirmButton: false,
-    });
-  } catch (error) {
-    console.error("Error generating CSV:", error);
-    $swal.fire({
-      title: "Error",
-      text: "Failed to generate CSV. Please try again.",
-      icon: "error",
-    });
-  }
-};
-
+// Datatable features (Save/Load Template, Ungroup/Group, Generate API, Download PDF/CSV)
+const {
+  templateFileInputRef,
+  exportConfigRef,
+  isGrouped,
+  showGenerateApiModal,
+  apiOutputType,
+  generateApiLoading,
+  handleSaveTemplate,
+  handleLoadTemplate,
+  onTemplateFileChange,
+  handleGenerateApi,
+  handleGenerateApiProceed,
+  handleCloseGenerateApiModal,
+  handleUngroupList,
+  handleGroupList,
+  handleDownloadPDF,
+  handleDownloadCSV,
+} = useDatatableFeatures({
+  pageName: "Message Type",
+  apiDataPath: "/api/message-management/setup/message-type",
+  defaultExportColumns: ["Code", "Description", "Status"],
+  getFilteredList: () => filteredMessagetypeList.value,
+  datatableRef,
+  searchKeyword,
+  smartFilter,
+  topFilter,
+  applyFilters,
+  getLookupLabel,
+  columnOptionsLookup: { Status: StatusOptions },
+  smartFilterLabels: { Code_filter: "Code", Description_filter: "Description", Status_filter: "Status" },
+  smartFilterOptionsLookup: { Status_filter: StatusOptions },
+});
 
 // View function
 const handleView = (item) => {
@@ -520,6 +325,7 @@ const handleView = (item) => {
   isEditMode.value = false;
   editingId.value = item.id || Object.values(item)[0];
   messagetypeForm.value = { ...item };
+  
   showMessagetypeModal.value = true;
 };
 
@@ -548,11 +354,15 @@ const handleAdd = () => {
   isViewMode.value = false;
   editingId.value = null;
   messagetypeForm.value = {};
+  
   showMessagetypeModal.value = true;
 };
 
 // Delete function
 const handleDelete = async (item) => {
+  const messageText = "Are you sure? Do you want to delete this record?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: `Do you want to delete this record?`,
@@ -563,6 +373,8 @@ const handleDelete = async (item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
@@ -628,13 +440,20 @@ const handleSaveMessagetype = async () => {
     }
 
     if (response.data.value?.statusCode === 200 || response.data.value?.statusCode === 201) {
+      const successMessage = isEditMode.value ? "Success. " + pageNameForLog + " updated successfully" : "Success. " + pageNameForLog + " is created successfully";
       $swal.fire({
         title: "Success",
-        text: isEditMode.value ? "Record updated successfully" : "Record created successfully",
+        text: successMessage,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
+
+      if (isEditMode.value) {
+        await logUpdateSuccess(successMessage, pageNameForLog + " updated");
+      } else {
+        await logCreateSuccess(successMessage, pageNameForLog + " created");
+      }
       
       // Refresh data from API
       await fetchData();
@@ -678,12 +497,37 @@ fetchData();
 
 <template>
   <div class="space-y-6">
+    <input
+      ref="templateFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden"
+      @change="onTemplateFileChange"
+    />
     <LayoutsBreadcrumb />
     <!-- Datatable -->
     <rs-card>
       <template #header>
         <div class="flex justify-between items-center">
           <div class="text-lg font-semibold">List of Message</div>
+          <rs-dropdown
+            variant="secondary-text"
+            size="sm"
+            :hideChevron="true"
+            position="bottom"
+            textAlign="right"
+            itemSize="11rem"
+            class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+          >
+            <template #title>
+              <Icon name="mdi:dots-vertical" size="1rem" />
+            </template>
+            <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+            <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+            <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+            <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+            <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+          </rs-dropdown>
         </div>
       </template>
       <template #body>
@@ -756,7 +600,9 @@ fetchData();
             </div>
             <rs-table
               v-else
-              :key="`messagetype-table-${searchKeyword || 'all'}-${pageSize}`"
+              ref="datatableRef"
+              :exportConfigRef="exportConfigRef"
+              :key="`messagetype-table`"
               :data="filteredMessagetypeList"
               :field='["no","Code","Description","Status","Action"]'
               :options="{
@@ -773,6 +619,9 @@ fetchData();
               }"
               advanced
               :pageSize="pageSize"
+              :columnMovable="true"
+              :columnHideShow="true"
+              :columnGroupingList="isGrouped"
             >
               <template v-slot:no="data">
                 {{ data.value.no }}
@@ -851,6 +700,43 @@ fetchData();
         </div>
       </template>
     </rs-card>
+
+    <!-- Generate API Modal -->
+    <rs-modal
+      v-model="showGenerateApiModal"
+      title="Generate API"
+      size="md"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Output Type</label>
+            <FormKit
+              v-model="apiOutputType"
+              type="select"
+              :options="[
+                { label: 'JSON', value: 'JSON' },
+                { label: 'PDF', value: 'PDF' },
+                { label: 'CSV', value: 'CSV' },
+                { label: 'EXCEL', value: 'EXCEL' },
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            A unique API key will be generated. Use the URL to access data in the selected format. JSON and PDF display in browser; CSV and Excel download.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <rs-button variant="secondary" @click="handleCloseGenerateApiModal">Cancel</rs-button>
+          <rs-button variant="primary" :disabled="generateApiLoading" @click="handleGenerateApiProceed">
+            {{ generateApiLoading ? 'Generating...' : 'Proceed' }}
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
 
     <!-- Smart Filter Modal -->
     <rs-modal
@@ -980,6 +866,7 @@ fetchData();
                   :disabled="isViewMode"
                   placeholder="Enter Code"
                   outer-class="mb-0"
+                  
                 />
               </div>
             </div>
@@ -994,6 +881,7 @@ fetchData();
                   :disabled="isViewMode"
                   placeholder="Enter Description"
                   outer-class="mb-0"
+                  
                 />
               </div>
             </div>
@@ -1008,6 +896,7 @@ fetchData();
                   :disabled="isViewMode"
                   placeholder="Select Status"
                   outer-class="mb-0"
+                  
                 />
               </div>
             </div>
@@ -1030,6 +919,37 @@ fetchData();
 </template>
 
 <style scoped>
+/* Compact radio/checkbox: horizontal layout, less spacing */
+.compact-radio-checkbox :deep(ul),
+.compact-radio-checkbox :deep([class*="options"]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0 0;
+}
+.compact-radio-checkbox :deep(li) {
+  margin: 0;
+  padding: 0;
+}
+.compact-radio-checkbox :deep(label) {
+  margin-bottom: 0;
+}
+/* Text format from component item cssClass (format-uppercase, format-initcap, format-lowercase) */
+.format-uppercase :deep(input),
+.format-uppercase :deep(textarea) {
+  text-transform: uppercase;
+}
+.format-lowercase :deep(input),
+.format-lowercase :deep(textarea) {
+  text-transform: lowercase;
+}
+.format-initcap :deep(input),
+.format-initcap :deep(textarea) {
+  text-transform: capitalize;
+}
 /* Hide default table header since we're using custom header */
 .messagetype-table-wrapper :deep(.table-header) {
   display: none;

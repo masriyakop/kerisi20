@@ -1,6 +1,7 @@
-/* RS Tab Component */
+/* RS Tab Component - Monochrome Compact */
 .tab {
-  @apply rounded-md;
+  border-radius: var(--rounded-box, 0.25rem);
+  font-size: var(--font-size-sm, 0.75rem);
 }
 
 .tab.vertical {
@@ -8,11 +9,14 @@
 }
 
 .tab.tab-card {
-  @apply shadow-md pt-4;
+  @apply pt-3;
+  border: 1px solid rgb(var(--border-color));
+  box-shadow: var(--box-shadow);
 }
 
 .tab.card-vertical {
-  @apply shadow-md;
+  border: 1px solid rgb(var(--border-color));
+  box-shadow: var(--box-shadow);
 }
 
 .tab.card-primary {
@@ -132,7 +136,8 @@
 }
 
 .tab .tab-nav .tab-item .tab-item-link {
-  @apply block font-medium text-base leading-tight capitalize border-x-0 border-t-0 py-3;
+  @apply block font-medium leading-tight border-x-0 border-t-0 py-2;
+  font-size: var(--font-size-sm, 0.75rem);
 }
 
 .tab .tab-nav .tab-item .tab-item-link.default {
@@ -318,5 +323,5 @@
 }
 
 .tab .tab-content .tab-pane {
-  @apply py-4 px-4;
+  @apply py-3 px-3;
 }

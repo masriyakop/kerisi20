@@ -15,6 +15,7 @@ const { $swal } = useNuxtApp();
 // Table data
 const postingList = ref([]);
 const loading = ref(false);
+const datatableRef = ref(null);
 const loadingMore = ref(false);
 const pageSize = ref(1000); // Increased default for virtual scrolling
 const searchKeyword = ref("");
@@ -375,6 +376,37 @@ const handlePageSizeChange = () => {
   fetchPostingRecords();
 };
 
+// Datatable features (Save/Load Template, Ungroup/Group, Generate API, Download PDF/CSV)
+const {
+  templateFileInputRef,
+  exportConfigRef,
+  isGrouped,
+  showGenerateApiModal,
+  apiOutputType,
+  generateApiLoading,
+  handleSaveTemplate,
+  handleLoadTemplate,
+  onTemplateFileChange,
+  handleGenerateApi,
+  handleGenerateApiProceed,
+  handleCloseGenerateApiModal,
+  handleUngroupList,
+  handleGroupList,
+  handleDownloadPDF,
+  handleDownloadCSV,
+} = useDatatableFeatures({
+  pageName: "Posting to GL",
+  apiDataPath: "/api/posting-to-gl",
+  defaultExportColumns: ["Posting No", "Document No", "System ID", "Transaction Amount (CR)", "Transaction Amount (DT)", "Status", "Reference 1", "Reference 2", "Posted Date"],
+  getFilteredList: () => postingList.value,
+  datatableRef,
+  searchKeyword,
+  smartFilter,
+  topFilter,
+  applyFilters: () => fetchPostingRecords(),
+  smartFilterLabels: { pmt_posting_no: "Posting No", pmt_system_id: "System ID", pde_document_no: "Document No", pde_reference: "Reference 1", pde_reference1: "Reference 2", pmt_status: "Status", date_from: "Date From", date_to: "Date To" },
+});
+
 // Initialize on mount
 onMounted(async () => {
   await fetchSystemIdOptions();
@@ -390,6 +422,13 @@ watch(pageSize, () => {
 
 <template>
   <div class="space-y-6">
+    <input
+      ref="templateFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden"
+      @change="onTemplateFileChange"
+    />
     <LayoutsBreadcrumb />
 
     <!-- Top Filter Form: Posting Details -->
@@ -458,7 +497,27 @@ watch(pageSize, () => {
     <!-- Datatable -->
     <rs-card>
       <template #header>
-        <div class="text-lg font-semibold">Posting</div>
+        <div class="flex justify-between items-center">
+          <div class="text-lg font-semibold">Posting</div>
+          <rs-dropdown
+            variant="secondary-text"
+            size="sm"
+            :hideChevron="true"
+            position="bottom"
+            textAlign="right"
+            itemSize="11rem"
+            class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+          >
+            <template #title>
+              <Icon name="mdi:dots-vertical" size="1rem" />
+            </template>
+            <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+            <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+            <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+            <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+            <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+          </rs-dropdown>
+        </div>
       </template>
       <template #body>
         <div class="space-y-4">
@@ -629,7 +688,9 @@ watch(pageSize, () => {
             <!-- Regular Pagination Table -->
             <rs-table
               v-else
-              :key="`posting-table-${searchKeyword || 'all'}-${pageSize}-${currentPage}`"
+              ref="datatableRef"
+              :exportConfigRef="exportConfigRef"
+              :key="`posting-table`"
               :data="postingList"
               :field="['no', 'Posting No', 'Document No', 'System ID', 'Transaction Amount (CR)', 'Transaction Amount (DT)', 'Status', 'Reference 1', 'Reference 2', 'Posted Date', 'Action']"
               :options="{
@@ -648,6 +709,9 @@ watch(pageSize, () => {
               :pageSize="postingList.length"
               :currentPage="1"
               hideTableFooter
+              :columnMovable="true"
+              :columnHideShow="true"
+              :columnGroupingList="isGrouped"
             >
               <template v-slot:no="data">
                 {{ data.value.no }}
@@ -748,20 +812,67 @@ watch(pageSize, () => {
                 {{ Math.min(currentPage * pageSize, totalRecords) }} of {{ totalRecords }} records
               </span>
             </div>
-            <div class="flex gap-6 text-sm">
-              <div>
-                <span class="font-medium">Total DT:</span>
-                <span class="ml-2">{{ toCurrency(grandTotalDT) }}</span>
-              </div>
-              <div>
-                <span class="font-medium">Total CR:</span>
-                <span class="ml-2">{{ toCurrency(grandTotalCR) }}</span>
+            <div class="flex items-center gap-4">
+              <rs-button variant="secondary" @click="handleDownloadPDF">
+                <Icon name="material-symbols:picture-as-pdf" class="mr-2" size="1rem" />
+                Download PDF
+              </rs-button>
+              <rs-button variant="secondary" @click="handleDownloadCSV">
+                <Icon name="material-symbols:file-download" class="mr-2" size="1rem" />
+                Download CSV
+              </rs-button>
+              <div class="flex gap-6 text-sm">
+                <div>
+                  <span class="font-medium">Total DT:</span>
+                  <span class="ml-2">{{ toCurrency(grandTotalDT) }}</span>
+                </div>
+                <div>
+                  <span class="font-medium">Total CR:</span>
+                  <span class="ml-2">{{ toCurrency(grandTotalCR) }}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </template>
     </rs-card>
+
+    <!-- Generate API Modal -->
+    <rs-modal
+      v-model="showGenerateApiModal"
+      title="Generate API"
+      size="md"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Output Type</label>
+            <FormKit
+              v-model="apiOutputType"
+              type="select"
+              :options="[
+                { label: 'JSON', value: 'JSON' },
+                { label: 'PDF', value: 'PDF' },
+                { label: 'CSV', value: 'CSV' },
+                { label: 'EXCEL', value: 'EXCEL' },
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            A unique API key will be generated. Use the URL to access data in the selected format. JSON and PDF display in browser; CSV and Excel download.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <rs-button variant="secondary" @click="handleCloseGenerateApiModal">Cancel</rs-button>
+          <rs-button variant="primary" :disabled="generateApiLoading" @click="handleGenerateApiProceed">
+            {{ generateApiLoading ? 'Generating...' : 'Proceed' }}
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
 
     <!-- Smart Filter Modal -->
     <rs-modal

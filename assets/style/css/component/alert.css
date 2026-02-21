@@ -1,28 +1,31 @@
-/* RS Alert Component */
+/* RS Alert Component - Monochrome Compact */
 .alert {
-  @apply visible flex items-center justify-between py-3 px-3 rounded-lg;
+  @apply visible flex items-center justify-between py-2 px-3;
+  border-radius: var(--rounded-box, 0.25rem);
+  font-size: var(--font-size-sm, 0.75rem);
+  border: 1px solid;
 }
 
 .alert.alert-primary {
-  @apply bg-primary/20  text-primary;
+  @apply bg-primary/10 text-primary border-primary/30;
 }
 
 .alert.alert-secondary {
-  @apply bg-secondary/20 text-secondary;
+  @apply bg-secondary/10 text-secondary border-secondary/30;
 }
 
 .alert.alert-success {
-  @apply bg-success/20 text-success;
+  @apply bg-success/10 text-success border-success/30;
 }
 
 .alert.alert-info {
-  @apply bg-info/20 text-info;
+  @apply bg-info/10 text-info border-info/30;
 }
 
 .alert.alert-warning {
-  @apply bg-warning/20 text-warning;
+  @apply bg-warning/10 text-warning border-warning/30;
 }
 
 .alert.alert-danger {
-  @apply bg-danger/20 text-danger;
+  @apply bg-danger/10 text-danger border-danger/30;
 }

@@ -1,3 +1,4 @@
+/* Text Input - Monochrome Compact */
 .formkit-inner-text {
   @apply flex
     items-center
@@ -7,18 +8,16 @@
     border
     border-[rgb(var(--fk-border-color))]
     formkit-invalid:border-red-500
-    rounded-lg 
     overflow-hidden
-    focus-within:border-primary
+    focus-within:border-[rgb(var(--text-color))]
     mb-0;
+  border-radius: var(--rounded-btn, 0.25rem);
+  transition: border-color 0.15s ease;
 }
 
 .formkit-input-text {
   @apply w-full
-    h-10
-    px-3
     border-none
-    text-sm
     bg-[rgb(var(--bg-2))]
     placeholder-[rgb(var(--fk-placeholder-color))]
     focus:outline-none
@@ -28,10 +27,14 @@
     read-only:bg-[rgb(var(--bg-1))]
     read-only:border-[rgb(var(--bg-1))]
     read-only:placeholder-[rgb(var(--bg-1))];
+  height: 2rem; /* 32px - Compact */
+  padding: 0 0.625rem; /* 10px */
+  font-size: var(--font-size-sm, 0.75rem);
 }
 
 .formkit-prefix-text {
   @apply ml-2;
+  font-size: var(--font-size-sm, 0.75rem);
 }
 
 .formkit-message-text {

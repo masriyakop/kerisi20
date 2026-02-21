@@ -42,10 +42,68 @@ const showLookupQueryMappingInfo = () => {
           <div>SELECT ccr_code AS value, ccr_desc AS label FROM costcentre WHERE oun_code = '{PTJ}' AND fty_fund_type = '{Fund}';</div>
         </div>
         <p class="text-xs text-gray-500 mt-2">When user selects a Fund, the PTJ dropdown will automatically refresh with filtered options.</p>
+        <hr class="my-3 border-gray-300 dark:border-gray-600" />
+        <p class="font-semibold mb-2">Alias Convention (value &amp; label):</p>
+        <p class="text-sm text-gray-600 mb-2">The Page Generator recognizes these aliases and automatically maps them:</p>
+        <ul class="list-disc list-inside space-y-1 text-sm">
+          <li><strong>Value</strong> (code/ID for filtering): <code class="bg-gray-200 px-1 rounded">value</code>, <code class="bg-gray-200 px-1 rounded">id</code>, <code class="bg-gray-200 px-1 rounded">flc_id</code>, <code class="bg-gray-200 px-1 rounded">code</code></li>
+          <li><strong>Label</strong> (display text): <code class="bg-gray-200 px-1 rounded">label</code>, <code class="bg-gray-200 px-1 rounded">text</code>, <code class="bg-gray-200 px-1 rounded">flc_name</code>, <code class="bg-gray-200 px-1 rounded">name</code>, <code class="bg-gray-200 px-1 rounded">description</code>, <code class="bg-gray-200 px-1 rounded">desc</code></li>
+        </ul>
+        <hr class="my-3 border-gray-300 dark:border-gray-600" />
+        <p class="font-semibold mb-2">Complex SQL Queries:</p>
+        <p class="text-sm text-gray-600 mb-2">If the query contains SQL functions like <code class="bg-gray-200 px-1 rounded">CONCAT_WS()</code>, <code class="bg-gray-200 px-1 rounded">CONCAT()</code>, or subqueries like <code class="bg-gray-200 px-1 rounded">EXISTS (...)</code>, the Page Generator will execute the SQL <strong>directly</strong> using raw query (<code class="bg-gray-200 px-1 rounded">$queryRawUnsafe</code>) instead of ORM Prisma Model.</p>
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-2 rounded text-sm mt-2">
+          <div class="font-mono text-xs">SELECT DISTINCT acm_acct_code id,<br/>&nbsp;&nbsp;CONCAT_WS(' - ', acm_acct_code, acm_acct_desc) text,<br/>&nbsp;&nbsp;acm_acct_desc Description<br/>FROM account_main<br/>WHERE acm_flag_budget = 'Y'<br/>&nbsp;&nbsp;AND EXISTS (SELECT ... FROM ...)</div>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">Simple queries (without functions/subqueries) will use ORM Prisma Model for better performance and type safety.</p>
       </div>
     `,
     icon: "info",
     width: "650px",
+    confirmButtonText: "Got it",
+  });
+};
+
+// Show CSS Class info (special words for Page Generator)
+const showCssClassInfo = () => {
+  $swal.fire({
+    title: "CSS Class – Special Words",
+    html: `
+      <div class="text-left space-y-3">
+        <p class="text-sm text-gray-600 mb-2">You can use these words in the CSS Class field. Page Generator will apply the corresponding behavior:</p>
+        <ul class="list-disc list-inside space-y-1 text-sm">
+          <li><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">format-uppercase</code> — format text to UPPERCASE (textfield/textarea)</li>
+          <li><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">format-lowercase</code> — format text to lowercase (textfield/textarea)</li>
+          <li><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">format-initcap</code> — format text to Initcap (textfield/textarea)</li>
+          <li><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">force-one-column</code> — make the field span one full row (textfield, textarea, dropdown, checkbox, radio)</li>
+          <li><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">radio-inline</code> — radio group takes one column so two radios sit side by side (radio only)</li>
+          <li><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">d-none</code> — hide the field from view (display: none) — useful for ID fields kept for form logic but not shown (modal, form)</li>
+        </ul>
+        <p class="text-xs text-gray-500 mt-2">Multiple words can be combined, e.g. <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">force-one-column radio-inline</code> for side-by-side radios.</p>
+        <p class="text-xs text-gray-500 mt-2">Alternatively, uncheck the <strong>Visible</strong> checkbox below to hide the field — same effect as <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">d-none</code>.</p>
+      </div>
+    `,
+    icon: "info",
+    width: "480px",
+    confirmButtonText: "Got it",
+  });
+};
+
+// Show Additional Attribute info (special words for Page Generator)
+const showAdditionalAttributeInfo = () => {
+  $swal.fire({
+    title: "Additional Attribute – Special Words",
+    html: `
+      <div class="text-left space-y-3">
+        <p class="text-sm text-gray-600 mb-2">You can use this word in the Additional Attribute field. Page Generator will apply the corresponding behavior:</p>
+        <ul class="list-disc list-inside space-y-1 text-sm">
+          <li><code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">Required</code> — mark the form field as required (red asterisk on label and validation)</li>
+        </ul>
+        <p class="text-xs text-gray-500 mt-2">Matching is case-insensitive (e.g. "required" or "Required" both work).</p>
+      </div>
+    `,
+    icon: "info",
+    width: "440px",
     confirmButtonText: "Got it",
   });
 };
@@ -1115,46 +1173,69 @@ const handlePageGenerator = async () => {
     validationErrors.push("Page must have at least 1 active component");
   }
 
-  // 5. Check datatable components have Query Mapping
+  // 5. Check datatable components have Query Mapping (skip if "Use existing ORM Model" is checked)
   const datatableComponents = activeComponents.filter(c => c.type === "datatable");
   const datatablesWithoutQueryMapping = datatableComponents.filter(
-    c => !c.queryMapping || c.queryMapping.trim() === ""
+    c => {
+      const useExisting = parseInt(c.useExistingOrmModel) === 1 || c.useExistingOrmModel === true;
+      if (useExisting) return false; // Skip validation — using existing ORM model
+      return !c.queryMapping || c.queryMapping.trim() === "";
+    }
   );
   if (datatablesWithoutQueryMapping.length > 0) {
     const componentNames = datatablesWithoutQueryMapping.map(c => c.name || c.title).join(", ");
     validationErrors.push(`Datatable component(s) missing Query Mapping: ${componentNames}`);
   }
 
-  // 6. Check component items (dropdown, radio, checkbox, listbox) have Lookup Query Mapping
-  // Fetch all component items for active components
-  const componentItemErrors = [];
-  for (const component of activeComponents) {
-    const componentItems = componentItemsByComponentId.value[component.id] || [];
-    
-    for (const item of componentItems) {
-      const itemType = (item.type || "").toLowerCase();
-      const requiresLookup = ["dropdown", "radio", "checkbox", "listbox"].includes(itemType);
-      
-      if (requiresLookup) {
-        // Fetch full item data to check lookup_queryMapping
-        let fullItemData = item;
-        try {
-          const { data: itemData } = await useFetch(`/api/component-item-editor?id=${item.id}`, {
-            method: "GET",
-            initialCache: false,
-          });
-          
-          if (itemData.value?.statusCode === 200 && itemData.value?.data) {
-            fullItemData = itemData.value.data;
-          }
-        } catch (error) {
-          console.error(`Error fetching full data for component item ${item.id}:`, error);
-        }
+  // Build a set of component IDs that use existing ORM model (to skip their related validations)
+  const useExistingOrmComponentIds = new Set();
+  datatableComponents.forEach(c => {
+    if (parseInt(c.useExistingOrmModel) === 1 || c.useExistingOrmModel === true) {
+      useExistingOrmComponentIds.add(c.id);
+    }
+  });
 
-        if (!fullItemData.lookup_queryMapping || fullItemData.lookup_queryMapping.trim() === "") {
+  // 6. Check component items: checkbox requires Default Value; dropdown/radio/listbox require Lookup Query Mapping
+  // Skip this validation entirely if any datatable on this page uses existing ORM model
+  const pageHasExistingOrm = useExistingOrmComponentIds.size > 0;
+  const componentItemErrors = [];
+  if (!pageHasExistingOrm) {
+    for (const component of activeComponents) {
+      const componentItems = componentItemsByComponentId.value[component.id] || [];
+
+      for (const item of componentItems) {
+        const itemType = (item.type || "").toLowerCase();
+        const requiresDefaultValue = itemType === "checkbox";
+        const requiresLookup = ["dropdown", "radio", "listbox"].includes(itemType);
+
+        if (requiresDefaultValue || requiresLookup) {
+          let fullItemData = item;
+          try {
+            const { data: itemData } = await useFetch(`/api/component-item-editor?id=${item.id}`, {
+              method: "GET",
+              initialCache: false,
+            });
+
+            if (itemData.value?.statusCode === 200 && itemData.value?.data) {
+              fullItemData = itemData.value.data;
+            }
+          } catch (error) {
+            console.error(`Error fetching full data for component item ${item.id}:`, error);
+          }
+
           const componentName = component.name || component.title;
           const itemName = fullItemData.name || fullItemData.title || "Unnamed";
-          componentItemErrors.push(`Component "${componentName}" - Item "${itemName}" (${itemType}) is missing Lookup Query Mapping`);
+
+          if (requiresDefaultValue) {
+            if (!fullItemData.defaultValue || String(fullItemData.defaultValue).trim() === "") {
+              componentItemErrors.push(`Component "${componentName}" - Item "${itemName}" (checkbox) is missing Default Value`);
+            }
+          }
+          if (requiresLookup) {
+            if (!fullItemData.lookup_queryMapping || fullItemData.lookup_queryMapping.trim() === "") {
+              componentItemErrors.push(`Component "${componentName}" - Item "${itemName}" (${itemType}) is missing Lookup Query Mapping`);
+            }
+          }
         }
       }
     }
@@ -1454,6 +1535,80 @@ const handleSaveComponent = async () => {
     }
 
     if (response.data.value?.statusCode === 200) {
+      const componentIdForItems = isEditMode.value && editingId.value
+        ? editingId.value
+        : (response.data.value?.data?.id ?? editingId.value);
+
+      // Persist component items (like Datatable Editor: new rows created here, existing updated)
+      if (componentIdForItems && modalComponentItems.value.length > 0) {
+        const newRowsMissingFields = modalComponentItems.value
+          .filter((item) => !item.id || String(item.id).startsWith("new-"))
+          .filter((item) => !(item.name || "").trim() || !(item.title || "").trim());
+        if (newRowsMissingFields.length > 0) {
+          $swal.fire({
+            title: "Validation Error",
+            html: "Please fill in <b>Name</b> and <b>Title</b> for all new component item rows.",
+            icon: "warning",
+          });
+          componentsLoading.value = false;
+          return;
+        }
+
+        for (let index = 0; index < modalComponentItems.value.length; index++) {
+          const item = modalComponentItems.value[index];
+          const isNewRow = !item.id || String(item.id).startsWith("new-");
+          const order = index + 1;
+          const body = {
+            pageId: selectedPage.value.id,
+            componentId: componentIdForItems,
+            component: item.component || componentForm.value.name || "",
+            name: (item.name || "").trim(),
+            title: (item.title || "").trim(),
+            type: item.type || "textfield",
+            cssClass: item.cssClass || "",
+            additionalAttribute: item.additionalAttribute || "",
+            defaultValue: item.defaultValue || "",
+            lookup_queryMapping: item.lookup_queryMapping || "",
+            crudColumn: item.crudColumn || "",
+            visible: item.visible === 1 || item.visible === true ? 1 : 0,
+            active: item.active === 1 || item.active === true ? 1 : 0,
+            order,
+          };
+          if (isNewRow) {
+            const createRes = await useFetch("/api/component-item-editor", {
+              method: "POST",
+              body,
+              initialCache: false,
+            });
+            if (createRes.data.value?.statusCode !== 200) {
+              $swal.fire({
+                title: "Error",
+                text: createRes.data.value?.message || "Failed to create component item",
+                icon: "error",
+              });
+              componentsLoading.value = false;
+              return;
+            }
+          } else {
+            const updateRes = await useFetch(`/api/component-item-editor/${item.id}`, {
+              method: "PUT",
+              body: { ...body, componentId: item.componentId || componentIdForItems },
+              initialCache: false,
+            });
+            if (updateRes.data.value?.statusCode !== 200) {
+              $swal.fire({
+                title: "Error",
+                text: updateRes.data.value?.message || "Failed to update component item",
+                icon: "error",
+              });
+              componentsLoading.value = false;
+              return;
+            }
+          }
+        }
+        await fetchComponentItems(selectedPage.value.id);
+      }
+
       $swal.fire({
         title: "Success",
         text: isEditMode.value ? "Component updated successfully" : "Component created successfully",
@@ -1461,11 +1616,9 @@ const handleSaveComponent = async () => {
         timer: 2000,
         showConfirmButton: false,
       });
-      
-      // Refresh data from API
+
       await fetchComponents(selectedPage.value.id);
-      
-      // Reset form and close modal
+
       showComponentModal.value = false;
       modalComponentItems.value = [];
       componentForm.value = {
@@ -1521,47 +1674,42 @@ const handleCancelComponent = () => {
 
 // Update component item inline from modal datatable
 const handleUpdateModalComponentItem = async (item, field, value) => {
-  if (!item?.id) return;
-  
+  const itemIndex = modalComponentItems.value.findIndex((i) => i.id === item.id);
+  if (itemIndex === -1) return;
+
   // Update local state immediately for responsive UI
-  const itemIndex = modalComponentItems.value.findIndex(i => i.id === item.id);
-  if (itemIndex !== -1) {
-    modalComponentItems.value[itemIndex][field] = value;
-  }
-  
-  // Prepare update body
+  modalComponentItems.value[itemIndex][field] = value;
+
+  // New rows (temp id) are only saved when user clicks Save on Edit Component modal
+  const isNewRow = !item.id || String(item.id).startsWith("new-");
+  if (isNewRow) return;
+
+  // Persist existing rows to API
   const updateBody = {
-    name: item.name || "",
-    title: item.title || "",
-    component: item.component || "",
-    componentId: item.componentId || editingId.value,
-    type: field === "type" ? value : (item.type || ""),
-    cssClass: item.cssClass || "",
-    additionalAttribute: item.additionalAttribute || "",
-    defaultValue: item.defaultValue || "",
-    lookup_queryMapping: item.lookup_queryMapping || "",
-    visible: field === "visible" ? (value ? 1 : 0) : (item.visible === 1 || item.visible === true ? 1 : 0),
-    active: field === "active" ? (value ? 1 : 0) : (item.active === 1 || item.active === true ? 1 : 0),
-    order: item.order || 1,
+    name: modalComponentItems.value[itemIndex].name || "",
+    title: modalComponentItems.value[itemIndex].title || "",
+    component: modalComponentItems.value[itemIndex].component || "",
+    componentId: modalComponentItems.value[itemIndex].componentId || editingId.value,
+    type: modalComponentItems.value[itemIndex].type || "",
+    cssClass: modalComponentItems.value[itemIndex].cssClass || "",
+    additionalAttribute: modalComponentItems.value[itemIndex].additionalAttribute || "",
+    defaultValue: modalComponentItems.value[itemIndex].defaultValue || "",
+    lookup_queryMapping: modalComponentItems.value[itemIndex].lookup_queryMapping || "",
+    crudColumn: modalComponentItems.value[itemIndex].crudColumn || "",
+    visible: modalComponentItems.value[itemIndex].visible === 1 || modalComponentItems.value[itemIndex].visible === true ? 1 : 0,
+    active: modalComponentItems.value[itemIndex].active === 1 || modalComponentItems.value[itemIndex].active === true ? 1 : 0,
+    order: modalComponentItems.value[itemIndex].order || 1,
   };
-  
-  // Override specific field
-  if (field === "name") updateBody.name = value;
-  if (field === "title") updateBody.title = value;
-  
+
   try {
     const { data } = await useFetch(`/api/component-item-editor/${item.id}`, {
       method: "PUT",
       body: updateBody,
       initialCache: false,
     });
-    
-    if (data.value?.statusCode === 200) {
-      // Refresh the main component items cache
-      if (selectedPage.value?.id) {
-        await fetchComponentItems(selectedPage.value.id);
-      }
-    } else {
+    if (data.value?.statusCode === 200 && selectedPage.value?.id) {
+      await fetchComponentItems(selectedPage.value.id);
+    } else if (data.value?.message) {
       console.error("Failed to update component item:", data.value?.message);
     }
   } catch (error) {
@@ -1569,73 +1717,51 @@ const handleUpdateModalComponentItem = async (item, field, value) => {
   }
 };
 
-// Add new component item from modal inline table
-const handleAddModalComponentItem = async () => {
+// Add new component item row inline (like Datatable Editor) - no modal, row appears in table
+const handleAddModalComponentItem = () => {
   if (!editingId.value || !selectedPage.value?.id) return;
-  
-  // Calculate next order number
-  const maxOrder = modalComponentItems.value.length > 0 
-    ? Math.max(...modalComponentItems.value.map(item => item.order || 0)) 
-    : 0;
-  
-  // Get component name from componentForm
-  const componentName = componentForm.value.name || "";
-  
-  try {
-    const newItemData = {
-      pageId: selectedPage.value.id,
-      name: "",
-      title: "",
-      component: componentName,
-      componentId: editingId.value,
-      type: "textfield",
-      cssClass: "",
-      additionalAttribute: "",
-      defaultValue: "",
-      lookup_queryMapping: "",
-      visible: 1,
-      active: 1,
-      order: maxOrder + 1,
-    };
-    
-    const { data } = await useFetch("/api/component-item-editor", {
-      method: "POST",
-      body: newItemData,
-      initialCache: false,
-    });
-    
-    if (data.value?.statusCode === 200) {
-      // Add the new item to the modal list
-      const newItem = data.value.data || { ...newItemData, id: Date.now() };
-      modalComponentItems.value.push(newItem);
-      
-      // Refresh the main component items cache
-      await fetchComponentItems(selectedPage.value.id);
-    } else {
-      console.error("Failed to add component item:", data.value?.message);
-      $swal.fire({
-        title: "Error",
-        text: data.value?.message || "Failed to add component item",
-        icon: "error",
-      });
-    }
-  } catch (error) {
-    console.error("Error adding component item:", error);
-    $swal.fire({
-      title: "Error",
-      text: "An error occurred while adding component item",
-      icon: "error",
-    });
+
+  if (componentItemTypeOptions.value.length === 0) {
+    loadComponentItemTypes();
   }
+
+  const maxOrder = modalComponentItems.value.length > 0
+    ? Math.max(...modalComponentItems.value.map((item) => item.order || 0))
+    : 0;
+
+  const newItem = {
+    id: `new-${Date.now()}`,
+    name: "",
+    title: "",
+    component: componentForm.value.name || "",
+    componentId: editingId.value,
+    type: "textfield",
+    cssClass: "",
+    additionalAttribute: "",
+    defaultValue: "",
+    lookup_queryMapping: "",
+    crudColumn: "",
+    visible: 1,
+    active: 1,
+    order: maxOrder + 1,
+    pageId: selectedPage.value.id,
+  };
+  modalComponentItems.value.push(newItem);
 };
 
 // Delete component item from modal inline table
 const handleDeleteModalComponentItem = async (item) => {
-  if (!item?.id) return;
-  
+  if (!item) return;
+
+  const isNewRow = !item.id || String(item.id).startsWith("new-");
+  if (isNewRow) {
+    modalComponentItems.value = modalComponentItems.value.filter((i) => i.id !== item.id);
+    return;
+  }
+
   const result = await $swal.fire({
     title: "Delete Component Item?",
-    text: `Are you sure you want to delete "${item.name || item.title || 'this item'}"?`,
+    text: `Are you sure you want to delete "${item.name || item.title || "this item"}"?`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#d33",
@@ -1643,23 +1769,19 @@ const handleDeleteModalComponentItem = async (item) => {
     confirmButtonText: "Yes, delete it",
     cancelButtonText: "Cancel",
   });
-  
+
   if (result.isConfirmed) {
     try {
       const { data } = await useFetch(`/api/component-item-editor/${item.id}`, {
         method: "DELETE",
         initialCache: false,
       });
-      
+
       if (data.value?.statusCode === 200) {
-        // Remove from modal list
-        modalComponentItems.value = modalComponentItems.value.filter(i => i.id !== item.id);
-        
-        // Refresh the main component items cache
+        modalComponentItems.value = modalComponentItems.value.filter((i) => i.id !== item.id);
         if (selectedPage.value?.id) {
           await fetchComponentItems(selectedPage.value.id);
         }
-        
         $swal.fire({
           title: "Deleted",
           text: "Component item deleted successfully",
@@ -1695,10 +1817,10 @@ const handleModalComponentItemReorder = async (event) => {
   });
   
   try {
-    // Persist order changes to backend
+    // Persist order changes to backend (skip new rows - they have no id yet)
     const updatePromises = modalComponentItems.value.map((item, index) => {
-      if (!item.id) return Promise.resolve();
-      
+      if (!item.id || String(item.id).startsWith("new-")) return Promise.resolve();
+
       return useFetch(`/api/component-item-editor/${item.id}`, {
         method: "PUT",
         body: {
@@ -2035,10 +2157,40 @@ const handleSaveComponentItem = async () => {
         timer: 2000,
         showConfirmButton: false,
       });
-      
+
       // Refresh data from API
       await fetchComponentItems(selectedPage.value.id);
-      
+
+      // If Edit Component modal is open, update modalComponentItems so the new/updated row appears in the table
+      if (showComponentModal.value && editingId.value) {
+        const list = componentItemsByComponentId.value[editingId.value] || [];
+        if (isComponentItemEditMode.value) {
+          const idx = modalComponentItems.value.findIndex((i) => i.id === editingComponentItemId.value);
+          if (idx >= 0 && list.find((i) => i.id === editingComponentItemId.value)) {
+            const fullItem = list.find((i) => i.id === editingComponentItemId.value);
+            if (fullItem) {
+              try {
+                const { data: itemData } = await useFetch(`/api/component-item-editor?id=${fullItem.id}`, {
+                  method: "GET",
+                  initialCache: false,
+                });
+                if (itemData.value?.statusCode === 200 && itemData.value?.data) {
+                  modalComponentItems.value[idx] = itemData.value.data;
+                }
+              } catch {
+                modalComponentItems.value[idx] = { ...fullItem };
+              }
+            }
+          }
+        } else {
+          const newItem = response.data.value?.data;
+          if (newItem) {
+            modalComponentItems.value.push(newItem);
+            modalComponentItems.value.sort((a, b) => (a.order || 0) - (b.order || 0));
+          }
+        }
+      }
+
       // Reset form and close modal
       showComponentItemModal.value = false;
       componentItemForm.value = {
@@ -3579,7 +3731,15 @@ onUnmounted(() => {
 
             <!-- CSS Class -->
             <div class="flex items-center gap-2">
-              <label class="w-32 text-xs font-medium">CSS Class:</label>
+              <div class="w-32 flex items-center gap-1">
+                <label class="text-xs font-medium">CSS Class:</label>
+                <Icon
+                  name="material-symbols:info-outline"
+                  class="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary"
+                  size="16"
+                  @click="showCssClassInfo"
+                />
+              </div>
               <div class="flex-1">
                 <FormKit
                   v-model="componentItemForm.cssClass"
@@ -3592,7 +3752,15 @@ onUnmounted(() => {
 
             <!-- Additional Attribute -->
             <div class="flex items-center gap-2">
-              <label class="w-32 text-xs font-medium">Additional Attribute:</label>
+              <div class="w-32 flex items-center gap-1">
+                <label class="text-xs font-medium">Additional Attribute:</label>
+                <Icon
+                  name="material-symbols:info-outline"
+                  class="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary"
+                  size="16"
+                  @click="showAdditionalAttributeInfo"
+                />
+              </div>
               <div class="flex-1">
                 <FormKit
                   v-model="componentItemForm.additionalAttribute"

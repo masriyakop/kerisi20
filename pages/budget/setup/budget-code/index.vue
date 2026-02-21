@@ -1,36 +1,50 @@
 <script setup>
+import { useMessageLog } from "~/composables/useMessageLog";
+
 definePageMeta({
   title: "Budget Code",
   middleware: ["auth"],
   requiresAuth: true,
   breadcrumb: [
-    {
-      name: "Dashboard",
-      path: "/dashboard",
-    },
-    {
-      name: "Budget",
-      path: "/budget",
-    },
-    {
-      name: "Setup",
-      path: "/budget/setup",
-    },
-    {
-      name: "Budget Code",
-      path: "/budget/setup/budget-code",
-    },
-  ],
+  {
+    "name": "Budget",
+    "path": "/budget"
+  },
+  {
+    "name": "Setup",
+    "path": "/budget/setup"
+  },
+  {
+    "name": "Budget Code",
+    "path": "/budget/setup/budget-code"
+  },
+  {
+    "name": "Budget Code",
+    "path": "/budget/setup/budget-code/budgetcode"
+  }
+],
 });
 
 const { $swal } = useNuxtApp();
+const route = useRoute();
+
+const pageNameForLog = "Budget Code";
+const moduleNameForLog = "Budget Code";
+const pageBreadcrumbTextForLog = "Budget > Setup > Budget Code > Budget Code";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName: pageNameForLog,
+  moduleName: moduleNameForLog,
+  pageBreadcrumbText: pageBreadcrumbTextForLog,
+});
 
 // Table data
-const budgetCodeList = ref([]);
+const budgetcodeList = ref([]);
 const loading = ref(false);
+const exportConfigRef = ref(null);
+const datatableRef = ref(null);
 
-// Table reference to access sort state
-const tableRef = ref(null);
+// Collapse state for datatable
+
 
 // Search and filter state
 const searchKeyword = ref("");
@@ -39,120 +53,276 @@ const pageSize = ref(10);
 // Smart Filter modal state
 const showSmartFilter = ref(false);
 
-// Add/Edit Budget Code modal state
-const showBudgetCodeModal = ref(false);
+// Add/Edit modal state
+const showBudgetcodeModal = ref(false);
 const isEditMode = ref(false);
 const isViewMode = ref(false);
 const editingId = ref(null);
 
 // Smart Filter values
-const smartFilter = ref({
-  lbc_level_filter: "",
-  lbc_budget_code_filter: "",
-  lbc_description_filter: "",
-  lbc_status_filter: "",
-});
+const smartFilter = ref({});
+const originalFilter = ref({});
 
-// Store original filter values for reset
-const originalFilter = ref({
-  lbc_level_filter: "",
-  lbc_budget_code_filter: "",
-  lbc_description_filter: "",
-  lbc_status_filter: "",
-});
+// Top Filter state
+const topFilter = ref({});
 
-// Dropdown options
-const levelOptions = ref([
-  { label: "3", value: "3" },
-  { label: "4", value: "4" },
-  { label: "5", value: "5" },
-  { label: "6", value: "6" },
-]);
+// Smart Filter labels for export (field key -> display label)
+// Smart Filter options mapping for export (field key -> options variable name for dropdown/radio/checkbox/listbox)
+const smartFilterLabels = {"lbc_level_filter_filter":"Level","lbc_budget_code_filter_filter":"Budget Code","lbc_description_filter_filter":"Description","lbc_status_filter_filter":"Status"};
+const smartFilterOptionsMap = {"lbc_level_filter_filter":"lbc_level_filterOptions","lbc_status_filter_filter":"lbc_status_filterOptions"};
 
-const statusOptions = ref([
-  { label: "ACTIVE", value: "ACTIVE" },
-  { label: "INACTIVE", value: "INACTIVE" },
-]);
+// Top Filter labels for export (field key -> display label)
+// Top Filter options mapping for export (field key -> options variable name for dropdown/radio/checkbox/listbox)
+// No top filter labels
+// No top filter options mapping
 
-// Budget Code form data
-const budgetCodeForm = ref({
-  lbc_id: "",
-  lbc_level: "",
-  lbc_budget_code: "",
-  lbc_description: "",
-  lbc_status: "ACTIVE",
-});
+// Form data
+const budgetcodeForm = ref({});
+
+// Dropdown options - generated for fields with lookup_queryMapping
+const lbc_level_filterOptions = ref([]);
+const lbc_status_filterOptions = ref([]);
+const lbc_levelOptions = ref([]);
+const lbc_budget_codeOptions = ref([]);
+const lbc_statusOptions = ref([{"label":"ACTIVE","value":"1"},{"label":"INACTIVE","value":"0"}]);
+
+// Fetch dropdown options function (independent dropdowns)
+const fetchDropdownOptions = async () => {
+  try {
+    // Fetch lbc_level_filter options
+    const { data: lbc_level_filterData } = await useFetch("/api/page-generated/1475/lookups/lbc_level_filter", {
+      method: "GET",
+      initialCache: false,
+    });
+    if (lbc_level_filterData.value?.statusCode === 200 && lbc_level_filterData.value?.data) {
+      lbc_level_filterOptions.value = lbc_level_filterData.value.data.map((item) => ({
+        label: item.label || item.label || item.label || "",
+        value: item.value || item.value || item.value || "",
+      }));
+    }
+
+    // Fetch lbc_status_filter options
+    const { data: lbc_status_filterData } = await useFetch("/api/page-generated/1475/lookups/lbc_status_filter", {
+      method: "GET",
+      initialCache: false,
+    });
+    if (lbc_status_filterData.value?.statusCode === 200 && lbc_status_filterData.value?.data) {
+      lbc_status_filterOptions.value = lbc_status_filterData.value.data.map((item) => ({
+        label: item.label || item.label || item.label || "",
+        value: item.value || item.value || item.value || "",
+      }));
+    }
+
+    // Fetch lbc_level options
+    const { data: lbc_levelData } = await useFetch("/api/page-generated/1475/lookups/lbc_level", {
+      method: "GET",
+      initialCache: false,
+    });
+    if (lbc_levelData.value?.statusCode === 200 && lbc_levelData.value?.data) {
+      lbc_levelOptions.value = lbc_levelData.value.data.map((item) => ({
+        label: item.label || item.flc_name || item.acm_acct_level || "",
+        value: item.value || item.flc_id || item.acm_acct_level || "",
+      }));
+    }
+
+    // Fetch lbc_budget_code options
+    const { data: lbc_budget_codeData } = await useFetch("/api/page-generated/1475/lookups/lbc_budget_code", {
+      method: "GET",
+      initialCache: false,
+    });
+    if (lbc_budget_codeData.value?.statusCode === 200 && lbc_budget_codeData.value?.data) {
+      lbc_budget_codeOptions.value = lbc_budget_codeData.value.data.map((item) => ({
+        label: item.label || item.lbc_budget_code || item.lbc_budget_code || "",
+        value: item.value || item.lbc_budget_code || item.lbc_budget_code || "",
+      }));
+    }
+
+  } catch (error) {
+    console.error("Error fetching dropdown options:", error);
+  }
+};
+
+
+
+// Helper function to get lookup label from options array
+const getLookupLabel = (options, value) => {
+  if (!options || !Array.isArray(options) || value === null || value === undefined || value === '') {
+    return value || '';
+  }
+  const valueStr = String(value);
+  const option = options.find(opt => String(opt.value) === valueStr || String(opt.label) === valueStr);
+  return option ? option.label : value;
+};
+
+// Helper function to format date to DD/MM/YYYY
+const formatDate = (value) => {
+  if (!value) return '-';
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '-';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    return '-';
+  }
+};
+
+// Helper function to format datetime to DD/MM/YYYY HH:MI:SS AM/PM
+const formatDateTime = (value) => {
+  if (!value) return '-';
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '-';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = String(hours % 12 || 12).padStart(2, '0');
+    return `${day}/${month}/${year} ${displayHours}:${minutes}:${seconds} ${ampm}`;
+  } catch (error) {
+    return '-';
+  }
+};
+
+// Helper function to format date to YYYY-MM-DD for HTML date input
+const formatDateForInput = (value) => {
+  if (!value) return '';
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    return '';
+  }
+};
+
+
+// Fetch data function - fetches all data, rs-table handles pagination client-side
+const fetchData = async () => {
+  try {
+    loading.value = true;
+    const query = {
+      ...topFilter.value,
+    };
+
+    // Remove empty values
+    Object.keys(query).forEach((key) => {
+      if (query[key] === "" || query[key] === null) {
+        delete query[key];
+      }
+    });
+
+
+    const { data: data0 } = await useFetch("/api/budget/setup/budget-code", {
+      method: "GET",
+      query,
+      initialCache: false,
+    });
+
+    if (data0.value?.statusCode === 200) {
+        // Map database field names to display column headers (dt_key -> dt_bi)
+        const fieldAliasMap = {
+          "lbc_level": "Level",
+          "lbc_budget_code": "Budget Code",
+          "lbc_description": "Description",
+          "lbc_status": "Status"
+        };
+
+      budgetcodeList.value = (data0.value.data || []).map((item, idx) => {
+        const mappedItem = {
+          no: idx + 1,
+          Action: "",
+        };
+        // Map fields from API response
+        Object.keys(item).forEach((key) => {
+          mappedItem[key] = item[key];
+        });
+          // Apply field alias mapping (db field name -> display column name)
+          Object.entries(fieldAliasMap).forEach(([dbField, displayName]) => {
+            if (item[dbField] !== undefined) {
+              mappedItem[displayName] = item[dbField];
+            }
+          });
+        return mappedItem;
+      });
+      applyFilters();
+    }
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    $swal.fire({
+      title: "Error",
+      text: "Failed to fetch data",
+      icon: "error",
+    });
+  } finally {
+    loading.value = false;
+  }
+};
 
 // Filtered data - using ref instead of computed for better reactivity
-const filteredBudgetCodeList = ref([...budgetCodeList.value]);
+const filteredBudgetcodeList = ref([...budgetcodeList.value]);
 
 // Function to apply filters
 const applyFilters = () => {
-  let filtered = [...budgetCodeList.value];
+  let filtered = [...budgetcodeList.value];
 
   // Apply search filter - search all columns except 'No' and 'Action'
   if (searchKeyword.value && searchKeyword.value.trim() !== "") {
     const keyword = searchKeyword.value.toLowerCase().trim();
-    
     filtered = filtered.filter((item) => {
-      const level = (item.Level || "").toString().toLowerCase();
-      const budgetCode = (item["Budget Code"] || "").toLowerCase();
-      const description = (item.Description || "").toLowerCase();
-      const status = (item.Status || "").toLowerCase();
-
-      return (
-        level.includes(keyword) ||
-        budgetCode.includes(keyword) ||
-        description.includes(keyword) ||
-        status.includes(keyword)
-      );
+      return Object.keys(item).some((key) => {
+        if (key === 'no' || key === 'Action') return false;
+        const value = String(item[key] || "").toLowerCase();
+        return value.includes(keyword);
+      });
     });
   }
 
   // Apply smart filter
-  if (smartFilter.value.lbc_level_filter) {
-    filtered = filtered.filter((item) => item.Level === smartFilter.value.lbc_level_filter);
-  }
-
-  if (smartFilter.value.lbc_budget_code_filter) {
-    const filterCode = smartFilter.value.lbc_budget_code_filter.toLowerCase();
-    filtered = filtered.filter((item) => {
-      const itemCode = (item["Budget Code"] || "").toLowerCase();
-      return itemCode.includes(filterCode);
-    });
-  }
-
-  if (smartFilter.value.lbc_description_filter) {
-    const filterDesc = smartFilter.value.lbc_description_filter.toLowerCase();
-    filtered = filtered.filter((item) => {
-      const itemDesc = (item.Description || "").toLowerCase();
-      return itemDesc.includes(filterDesc);
-    });
-  }
-
-  if (smartFilter.value.lbc_status_filter) {
-    filtered = filtered.filter((item) => item.Status === smartFilter.value.lbc_status_filter);
-  }
+  // Build set of dropdown field names for exact matching (built at generation time)
+  const dropdownFilterFields = ["Level","lbc_level_filter","Status","lbc_status_filter"];
+  
+  Object.keys(smartFilter.value).forEach((key) => {
+    if (smartFilter.value[key]) {
+      // Remove _filter suffix to get the actual field name
+      const fieldName = key.replace(/_filter$/, "");
+      
+      filtered = filtered.filter((item) => {
+        // Try both the field name and the original key (for backward compatibility)
+        const itemValue = item[fieldName] || item[key];
+        const filterValue = smartFilter.value[key];
+        
+        // For dropdown fields, use exact match (handle type conversion)
+        if (dropdownFilterFields.includes(fieldName)) {
+          // Convert both to strings for comparison (handles number/string mismatches)
+          return String(itemValue) === String(filterValue);
+        } else {
+          // For text fields, use includes (substring match)
+          const itemValueStr = String(itemValue || "").toLowerCase();
+          const filterValueStr = String(filterValue).toLowerCase();
+          return itemValueStr.includes(filterValueStr);
+        }
+      });
+    }
+  });
 
   // Update the filtered list - force reactivity by creating new array reference
-  filteredBudgetCodeList.value = [];
+  filteredBudgetcodeList.value = [];
   nextTick(() => {
-    filteredBudgetCodeList.value = [...filtered];
+    filteredBudgetcodeList.value = [...filtered];
   });
 };
 
 // Total records count
-const totalRecords = computed(() => filteredBudgetCodeList.value.length);
-
-// Check if any smart filter is active
-const hasActiveFilters = computed(() => {
-  return !!(
-    smartFilter.value.lbc_level_filter ||
-    smartFilter.value.lbc_budget_code_filter ||
-    smartFilter.value.lbc_description_filter ||
-    smartFilter.value.lbc_status_filter
-  );
-});
+const totalRecords = computed(() => filteredBudgetcodeList.value.length);
 
 // Watch searchKeyword and apply filters when it changes
 watch(searchKeyword, () => {
@@ -164,80 +334,23 @@ watch(smartFilter, () => {
   applyFilters();
 }, { deep: true });
 
-// Fetch budget codes from API
-const fetchBudgetCodes = async () => {
-  try {
-    loading.value = true;
-    const { data } = await useFetch("/api/budget/setup/budget-code", {
-      method: "GET",
-      initialCache: false,
-    });
-
-    if (data.value?.statusCode === 200) {
-      budgetCodeList.value = (data.value.data || []).map((item) => ({
-        no: item.no,
-        Level: item.lbc_level,
-        "Budget Code": item.lbc_budget_code,
-        Description: item.lbc_description,
-        Status: item.lbc_status,
-        Action: "", // Action column with icons
-        // Keep original data for actions (not displayed as columns)
-        lbc_id: item.lbc_id,
-        lbc_level: item.lbc_level,
-        lbc_budget_code: item.lbc_budget_code,
-        lbc_description: item.lbc_description,
-        lbc_status: item.lbc_status,
-      }));
-      applyFilters();
-    } else {
-      $swal.fire({
-        title: "Error",
-        text: data.value?.message || "Failed to fetch budget codes",
-        icon: "error",
-      });
-    }
-  } catch (error) {
-    console.error("Error fetching budget codes:", error);
-    $swal.fire({
-      title: "Error",
-      text: "An error occurred while fetching budget codes",
-      icon: "error",
-    });
-  } finally {
-    loading.value = false;
-  }
-};
-
-// Initialize on mount
-onMounted(() => {
-  fetchBudgetCodes();
+// Check if any smart filter is active
+const hasActiveFilters = computed(() => {
+  return Object.values(smartFilter.value).some((value) => {
+    return value !== null && value !== undefined && value !== '' && String(value).trim() !== '';
+  });
 });
 
 // Handle filter - open Smart Filter modal
 const handleFilter = () => {
-  originalFilter.value = {
-    lbc_level_filter: smartFilter.value.lbc_level_filter,
-    lbc_budget_code_filter: smartFilter.value.lbc_budget_code_filter,
-    lbc_description_filter: smartFilter.value.lbc_description_filter,
-    lbc_status_filter: smartFilter.value.lbc_status_filter,
-  };
+  originalFilter.value = { ...smartFilter.value };
   showSmartFilter.value = true;
 };
 
 // Handle Smart Filter Reset
 const handleFilterReset = () => {
-  smartFilter.value = {
-    lbc_level_filter: "",
-    lbc_budget_code_filter: "",
-    lbc_description_filter: "",
-    lbc_status_filter: "",
-  };
-  originalFilter.value = {
-    lbc_level_filter: "",
-    lbc_budget_code_filter: "",
-    lbc_description_filter: "",
-    lbc_status_filter: "",
-  };
+  smartFilter.value = {};
+  originalFilter.value = {};
 };
 
 // Handle Smart Filter Ok
@@ -247,60 +360,192 @@ const handleFilterOk = () => {
 
 // Handle Smart Filter Cancel/Close
 const handleFilterClose = () => {
-  smartFilter.value = {
-    lbc_level_filter: originalFilter.value.lbc_level_filter,
-    lbc_budget_code_filter: originalFilter.value.lbc_budget_code_filter,
-    lbc_description_filter: originalFilter.value.lbc_description_filter,
-    lbc_status_filter: originalFilter.value.lbc_status_filter,
-  };
+  smartFilter.value = { ...originalFilter.value };
   showSmartFilter.value = false;
 };
 
-// View function
-const handleView = (item) => {
-  isViewMode.value = true;
-  isEditMode.value = false;
-  editingId.value = item.lbc_id;
-  budgetCodeForm.value = {
-    lbc_id: item.lbc_id.toString(),
-    lbc_level: item.lbc_level.toString(),
-    lbc_budget_code: item["Budget Code"],
-    lbc_description: item.Description || "",
-    lbc_status: item.Status,
+// 3-dot menu: Save Template, Load Template, Ungroup/Group List, Generate API
+const templateFileInputRef = ref(null);
+
+const handleSaveTemplate = async () => {
+  const tableState = datatableRef.value?.getTemplateState?.();
+  if (!tableState) return;
+
+  const template = {
+    version: 1,
+    pageName: pageNameForLog,
+    columnOrder: tableState.columnOrder,
+    hiddenColumns: tableState.hiddenColumns,
+    sortColumn: tableState.sortColumn,
+    sortDirection: tableState.sortDirection,
+    isGrouped: isGrouped.value,
+    searchKeyword: searchKeyword.value || "",
+    smartFilter: { ...smartFilter.value },
   };
-  showBudgetCodeModal.value = true;
+
+  const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+  const suggestedName = `${pageNameForLog} Template.json`;
+
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: "JSON Template", accept: { "application/json": [".json"] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        $swal.fire({ title: "Error", text: err.message || "Failed to save template", icon: "error" });
+      }
+    }
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 };
 
-// Edit function
-const handleEdit = (item) => {
-  isEditMode.value = true;
-  isViewMode.value = false;
-  editingId.value = item.lbc_id;
-  budgetCodeForm.value = {
-    lbc_id: item.lbc_id.toString(),
-    lbc_level: item.lbc_level.toString(),
-    lbc_budget_code: item["Budget Code"],
-    lbc_description: item.Description || "",
-    lbc_status: item.Status,
-  };
-  showBudgetCodeModal.value = true;
+const handleLoadTemplate = () => {
+  templateFileInputRef.value?.click();
 };
 
-// Add function
-const handleAdd = () => {
-  isEditMode.value = false;
-  isViewMode.value = false;
-  editingId.value = null;
-  budgetCodeForm.value = {
-    lbc_id: "",
-    lbc_level: "",
-    lbc_budget_code: "",
-    lbc_description: "",
-    lbc_status: "ACTIVE",
+const onTemplateFileChange = (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const template = JSON.parse(e.target?.result || "{}");
+      if (!template.columnOrder || !Array.isArray(template.columnOrder)) {
+        $swal.fire({ title: "Invalid Template", text: "Invalid template file format.", icon: "error" });
+        return;
+      }
+      datatableRef.value?.applyTemplateState?.(template);
+      if (template.searchKeyword !== undefined) searchKeyword.value = template.searchKeyword;
+      if (template.smartFilter && typeof template.smartFilter === "object") {
+        smartFilter.value = { ...template.smartFilter };
+      }
+      if (template.isGrouped !== undefined && typeof isGrouped !== 'undefined') isGrouped.value = !!template.isGrouped;
+      applyFilters();
+    } catch (err) {
+      $swal.fire({ title: "Invalid Template", text: "Failed to parse template file.", icon: "error" });
+    }
+    event.target.value = "";
   };
-  showBudgetCodeModal.value = true;
+  reader.readAsText(file);
 };
 
+const showGenerateApiModal = ref(false);
+const apiOutputType = ref("JSON");
+const generateApiLoading = ref(false);
+
+const handleGenerateApi = () => {
+  apiOutputType.value = "JSON";
+  showGenerateApiModal.value = true;
+};
+
+const handleGenerateApiProceed = async () => {
+  try {
+    generateApiLoading.value = true;
+    const tableState = datatableRef.value?.getTemplateState?.();
+    const exportConfig = datatableRef.value?.getExportConfig?.();
+    const templateDetails = tableState
+      ? {
+          columnOrder: tableState.columnOrder,
+          hiddenColumns: tableState.hiddenColumns,
+          sortColumn: tableState.sortColumn,
+          sortDirection: tableState.sortDirection,
+          isGrouped: isGrouped.value,
+          searchKeyword: searchKeyword.value || "",
+          smartFilter: { ...smartFilter.value },
+          exportColumns: exportConfig?.columns ?? null,
+        }
+      : {};
+    const apiDataPath = "/api/budget/setup/budget-code";
+    const kerisiExportSlug = apiDataPath ? apiDataPath.replace(/^\/api\//, "").replace(/^\//, "") : "";
+    const apiBaseUrl = ("undefined" !== "undefined" && window.location) ? `${window.location.origin}/api/kerisi-export/${kerisiExportSlug}` : "";
+    const { data } = await useFetch("/api/api-gen-template", {
+      method: "POST",
+      body: {
+        api_base_url: apiBaseUrl + (apiBaseUrl.includes("?") ? "" : "?"),
+        api_data_path: apiDataPath || null,
+        api_output_type: apiOutputType.value,
+        api_gen_template_details: templateDetails,
+      },
+    });
+    if (data.value?.statusCode === 200 && data.value?.data?.full_url) {
+      const fullUrl = data.value.data.full_url;
+      showGenerateApiModal.value = false;
+      $swal.fire({
+        title: "API Generated Successfully",
+        html: `
+          <p class="mb-4">Your API key has been created. Use the URL below to access your data:</p>
+          <div class="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+            <span class="flex-1 break-all">${fullUrl}</span>
+            <button type="button" id="swal-copy-url-btn" class="shrink-0 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="Copy URL">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            </button>
+          </div>
+          <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">JSON and PDF display in browser. CSV and Excel will download.</p>
+        `,
+        icon: "success",
+        width: 600,
+        didOpen: () => {
+          const btn = document.getElementById("swal-copy-url-btn");
+          if (btn) {
+            btn.addEventListener("click", async () => {
+              try {
+                await navigator.clipboard.writeText(fullUrl);
+                btn.title = "Copied!";
+                const svg = btn.querySelector("svg");
+                if (svg) svg.style.color = "var(--color-success, #22c55e)";
+                setTimeout(() => {
+                  btn.title = "Copy URL";
+                  if (svg) svg.style.color = "";
+                }, 1500);
+              } catch {
+                $swal.fire({ title: "Copy failed", text: "Please copy the URL manually.", icon: "warning", timer: 2000 });
+              }
+            });
+          }
+        },
+      }).then((result) => {
+        if (result.isConfirmed) {
+          navigator.clipboard.writeText(fullUrl).catch(() => {});
+        }
+      });
+    } else {
+      const errMsg = data.value?.message || data.value?.error || "Failed to generate API";
+      $swal.fire({
+        title: "Error",
+        text: errMsg,
+        icon: "error",
+      });
+    }
+  } catch (error) {
+    console.error("Generate API error:", error);
+    $swal.fire({
+      title: "Error",
+      text: "Failed to generate API. Please try again.",
+      icon: "error",
+    });
+  } finally {
+    generateApiLoading.value = false;
+  }
+};
+
+const handleCloseGenerateApiModal = () => {
+  showGenerateApiModal.value = false;
+};
+
+const isGrouped = ref(false);
+const handleUngroupList = () => { isGrouped.value = false; };
+const handleGroupList = () => { isGrouped.value = true; };
 // Download PDF function
 const handleDownloadPDF = async () => {
   try {
@@ -308,68 +553,10 @@ const handleDownloadPDF = async () => {
     const { default: jsPDF } = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
     
-    // Use organization logo
-    const logoPath = '/img/logo/organization_logo.png';
-    
-    // Get current filtered data
-    let dataToExport = [...filteredBudgetCodeList.value];
-    
-    // Apply current sort from table if available
-    if (tableRef.value && tableRef.value.currentSort !== undefined && tableRef.value.currentSort !== null) {
-      const sortIndex = tableRef.value.currentSort;
-      const sortDir = tableRef.value.currentSortDir || 'asc';
-      const columnTitles = tableRef.value.columnTitle || [];
-      
-      if (columnTitles.length > 0 && sortIndex >= 0 && sortIndex < columnTitles.length) {
-        const columnTitle = columnTitles[sortIndex];
-        
-        // Skip sorting for 'No' and 'Action' columns
-        if (columnTitle && columnTitle !== 'no' && columnTitle !== 'No' && columnTitle !== 'action' && columnTitle !== 'Action') {
-          // Map column titles to actual field names in the data
-          // The table uses field names as defined in :field prop
-          // Handle both exact matches and camelCase conversions
-          let fieldName = columnTitle;
-          
-          // If columnTitle is camelCase, try to find the matching field
-          // The actual data uses: 'Level', 'Budget Code', 'Description', 'Status'
-          if (columnTitle === 'Level' || columnTitle === 'level') {
-            fieldName = 'Level';
-          } else if (columnTitle === 'Budget Code' || columnTitle === 'budgetCode' || columnTitle === 'BudgetCode') {
-            fieldName = 'Budget Code';
-          } else if (columnTitle === 'Description' || columnTitle === 'description') {
-            fieldName = 'Description';
-          } else if (columnTitle === 'Status' || columnTitle === 'status') {
-            fieldName = 'Status';
-          }
-          
-          // Apply sorting based on table's current sort state (matching table's sorting logic)
-          dataToExport = [...dataToExport].sort((a, b) => {
-            // Get values using the field name
-            let aVal = a[fieldName];
-            let bVal = b[fieldName];
-            
-            // Handle null/undefined values (table shows '-' for these)
-            if (aVal === null || aVal === undefined || aVal === '') aVal = '-';
-            if (bVal === null || bVal === undefined || bVal === '') bVal = '-';
-            
-            // Convert to string and lowercase for comparison (matching table logic)
-            if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-            if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-            
-            // Try to convert to number if numeric (matching table logic)
-            const isNumeric = (n) => !isNaN(parseFloat(n)) && isFinite(n);
-            if (isNumeric(aVal)) aVal = parseFloat(aVal);
-            if (isNumeric(bVal)) bVal = parseFloat(bVal);
-            
-            // Apply sort direction
-            let modifier = sortDir === 'desc' ? -1 : 1;
-            if (aVal < bVal) return -1 * modifier;
-            if (aVal > bVal) return 1 * modifier;
-            return 0;
-          });
-        }
-      }
-    }
+    // Get export config from table (respects hidden, moved, grouped columns) or fallback to filtered list
+    const exportConfig = datatableRef.value?.getExportConfig?.() ?? (typeof exportConfigRef.value === 'function' ? exportConfigRef.value() : null);
+    const exportColumns = exportConfig ? exportConfig.columns : ["Level","Budget Code","Description","Status"];
+    let dataToExport = exportConfig ? [...exportConfig.data] : [...filteredBudgetcodeList.value];
     
     if (dataToExport.length === 0) {
       $swal.fire({
@@ -388,9 +575,8 @@ const handleDownloadPDF = async () => {
     });
     
     const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 10;
-    const logoSize = 12; // Logo height in mm
+    const logoSize = 12;
     const logoY = margin;
     const logoX = margin;
     
@@ -406,76 +592,48 @@ const handleDownloadPDF = async () => {
     const displayHours = hours % 12 || 12;
     const formattedDateTime = `Date : ${day}/${month}/${year} ${String(displayHours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
     
-    // Add logo on top left - wait for logo to load before continuing
+    // Add logo on top left
     let logoHeight = 0;
     try {
       const logoUrl = '/img/logo/organization_logo.png';
-      console.log('Loading logo from:', logoUrl);
-      
-      // Fetch and load logo image
       const response = await fetch(logoUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch logo: ${response.status} ${response.statusText}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const logoData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Failed to read logo file'));
+          reader.readAsDataURL(blob);
+        });
+        
+        const img = await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error('Failed to load image'));
+          image.src = logoData;
+        });
+        
+        const aspectRatio = img.width / img.height;
+        logoHeight = logoSize;
+        const logoWidth = logoSize * aspectRatio;
+        doc.addImage(logoData, 'PNG', logoX, logoY, logoWidth, logoHeight);
       }
-      
-      const blob = await response.blob();
-      console.log('Logo blob loaded, size:', blob.size);
-      
-      const logoData = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          console.log('Logo data read successfully');
-          resolve(reader.result);
-        };
-        reader.onerror = () => {
-          console.error('Failed to read logo file');
-          reject(new Error('Failed to read logo file'));
-        };
-        reader.readAsDataURL(blob);
-      });
-      
-      // Load image to get dimensions
-      const img = await new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => {
-          console.log('Image loaded, dimensions:', image.width, 'x', image.height);
-          resolve(image);
-        };
-        image.onerror = (e) => {
-          console.error('Failed to load image:', e);
-          reject(new Error('Failed to load image'));
-        };
-        image.src = logoData;
-      });
-      
-      // Calculate aspect ratio to maintain logo proportions
-      const aspectRatio = img.width / img.height;
-      logoHeight = logoSize;
-      const logoWidth = logoSize * aspectRatio;
-      
-      console.log('Adding logo to PDF at position:', logoX, logoY, 'size:', logoWidth, 'x', logoHeight);
-      
-      // Add logo to PDF
-      doc.addImage(logoData, 'PNG', logoX, logoY, logoWidth, logoHeight);
-      console.log('Logo added successfully to PDF');
     } catch (error) {
       console.error('Error loading logo:', error);
-      // Continue without logo - don't block PDF generation
       logoHeight = 0;
     }
     
     // Add date and time at top right
     doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
-    doc.setTextColor(0, 0, 0); // Ensure text is black
+    doc.setTextColor(0, 0, 0);
     const dateTimeWidth = doc.getTextWidth(formattedDateTime);
     const dateTimeX = pageWidth - margin - dateTimeWidth;
-    const dateTimeY = margin + 8; // Position at top right
+    const dateTimeY = margin + 8;
     doc.text(formattedDateTime, dateTimeX, dateTimeY);
     
     // Add title in the center
-    // Adjust title Y position based on logo height
-    const title = "Budget Code List";
+    const title = "Budget Code";
     const titleFontSize = 16;
     doc.setFontSize(titleFontSize);
     doc.setFont(undefined, 'bold');
@@ -484,18 +642,42 @@ const handleDownloadPDF = async () => {
     const titleY = margin + (logoHeight > 0 ? logoHeight + 3 : 10);
     doc.text(title, titleX, titleY);
     
-    // Prepare table data
-    const tableData = dataToExport.map((item, index) => [
-      (index + 1).toString(),
-      (item.Level || '').toString(),
-      (item['Budget Code'] || '').toString(),
-      (item.Description || '').toString(),
-      (item.Status || '').toString(),
-    ]);
+    // Prepare table data (exportColumns already set above)
+    const columnDateTypeMap = {};
+    const columnOptionsLookup = {};
+    columnOptionsLookup["Level"] = lbc_levelOptions.value;
+    columnOptionsLookup["Budget Code"] = lbc_budget_codeOptions.value;
+    columnOptionsLookup["Status"] = lbc_statusOptions.value;
+    
+    const formatCell = (item, col, val) => {
+      const options = columnOptionsLookup[col];
+      const dateType = columnDateTypeMap[col];
+      const value = val !== undefined ? val : item[col];
+      if (options) return (getLookupLabel(options, value) || '').toString();
+      if (dateType === 'datetime') return formatDateTime(value);
+      if (dateType === 'date') return formatDate(value);
+      return (value || '').toString();
+    };
+    
+    const { groupedInfo, columnTitleIndices } = exportConfig || {};
+    const tableData = dataToExport.map((item, index) => {
+      const row = [(index + 1).toString()];
+      exportColumns.forEach((col, colIdx) => {
+        const titleIdx = columnTitleIndices?.[colIdx];
+        const cellInfo = groupedInfo?.[index]?.[titleIdx];
+        if (cellInfo?.rowspan > 0) {
+          row.push({ content: formatCell(item, col, cellInfo.value), rowSpan: cellInfo.rowspan, styles: { valign: 'middle' } });
+        } else if (cellInfo?.rowspan !== 0) {
+          row.push(formatCell(item, col));
+        }
+        // rowspan === 0: omit cell (covered by rowspan above) - jspdf-autotable expects fewer cells
+      });
+      return row;
+    });
     
     // Add table
     autoTable(doc, {
-      head: [['No.', 'Level', 'Budget Code', 'Description', 'Status']],
+      head: [['No.', ...exportColumns]],
       body: tableData,
       startY: titleY + 8,
       margin: { left: margin, right: margin },
@@ -505,7 +687,7 @@ const handleDownloadPDF = async () => {
         textColor: [0, 0, 0],
       },
       headStyles: {
-        fillColor: [59, 130, 246], // Blue color for header
+        fillColor: [59, 130, 246],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center',
@@ -514,29 +696,24 @@ const handleDownloadPDF = async () => {
         halign: 'left',
       },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 15 }, // No. column - center aligned
-        1: { halign: 'center', cellWidth: 20 }, // Level
-        2: { cellWidth: 30 }, // Budget Code
-        3: { cellWidth: 80 }, // Description
-        4: { halign: 'center', cellWidth: 25 }, // Status
+        0: { halign: 'center', cellWidth: 15 },
       },
       alternateRowStyles: {
         fillColor: [245, 245, 245],
       },
       didDrawPage: (data) => {
-        // Add date and time at top right on each page
         doc.setFontSize(10);
         doc.setFont(undefined, 'normal');
-        doc.setTextColor(0, 0, 0); // Ensure text is black
+        doc.setTextColor(0, 0, 0);
         const dateTimeWidth = doc.getTextWidth(formattedDateTime);
         const dateTimeX = pageWidth - margin - dateTimeWidth;
-        const dateTimeY = margin + 8; // Position at top right
+        const dateTimeY = margin + 8;
         doc.text(formattedDateTime, dateTimeX, dateTimeY);
       },
     });
     
     // Save PDF
-    const fileName = `Budget_Code_List_${new Date().toISOString().split('T')[0]}.pdf`;
+    const fileName = `Budget_Code_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(fileName);
     
     $swal.fire({
@@ -555,67 +732,13 @@ const handleDownloadPDF = async () => {
     });
   }
 };
-
 // Download CSV function
 const handleDownloadCSV = () => {
   try {
-    // Get current filtered data
-    let dataToExport = [...filteredBudgetCodeList.value];
-    
-    // Apply current sort from table if available (same logic as PDF)
-    if (tableRef.value && tableRef.value.currentSort !== undefined && tableRef.value.currentSort !== null) {
-      const sortIndex = tableRef.value.currentSort;
-      const sortDir = tableRef.value.currentSortDir || 'asc';
-      const columnTitles = tableRef.value.columnTitle || [];
-      
-      if (columnTitles.length > 0 && sortIndex >= 0 && sortIndex < columnTitles.length) {
-        const columnTitle = columnTitles[sortIndex];
-        
-        // Skip sorting for 'No' and 'Action' columns
-        if (columnTitle && columnTitle !== 'no' && columnTitle !== 'No' && columnTitle !== 'action' && columnTitle !== 'Action') {
-          // Map column titles to actual field names in the data
-          let fieldName = columnTitle;
-          
-          // If columnTitle is camelCase, try to find the matching field
-          // The actual data uses: 'Level', 'Budget Code', 'Description', 'Status'
-          if (columnTitle === 'Level' || columnTitle === 'level') {
-            fieldName = 'Level';
-          } else if (columnTitle === 'Budget Code' || columnTitle === 'budgetCode' || columnTitle === 'BudgetCode') {
-            fieldName = 'Budget Code';
-          } else if (columnTitle === 'Description' || columnTitle === 'description') {
-            fieldName = 'Description';
-          } else if (columnTitle === 'Status' || columnTitle === 'status') {
-            fieldName = 'Status';
-          }
-          
-          // Apply sorting based on table's current sort state (matching table's sorting logic)
-          dataToExport = [...dataToExport].sort((a, b) => {
-            // Get values using the field name
-            let aVal = a[fieldName];
-            let bVal = b[fieldName];
-            
-            // Handle null/undefined values (table shows '-' for these)
-            if (aVal === null || aVal === undefined || aVal === '') aVal = '-';
-            if (bVal === null || bVal === undefined || bVal === '') bVal = '-';
-            
-            // Convert to string and lowercase for comparison (matching table logic)
-            if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-            if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-            
-            // Try to convert to number if numeric (matching table logic)
-            const isNumeric = (n) => !isNaN(parseFloat(n)) && isFinite(n);
-            if (isNumeric(aVal)) aVal = parseFloat(aVal);
-            if (isNumeric(bVal)) bVal = parseFloat(bVal);
-            
-            // Apply sort direction
-            let modifier = sortDir === 'desc' ? -1 : 1;
-            if (aVal < bVal) return -1 * modifier;
-            if (aVal > bVal) return 1 * modifier;
-            return 0;
-          });
-        }
-      }
-    }
+    // Get export config from table (respects hidden, moved, grouped columns) or fallback to filtered list
+    const exportConfig = datatableRef.value?.getExportConfig?.() ?? (typeof exportConfigRef.value === 'function' ? exportConfigRef.value() : null);
+    const exportColumns = exportConfig ? exportConfig.columns : ["Level","Budget Code","Description","Status"];
+    let dataToExport = exportConfig ? [...exportConfig.data] : [...filteredBudgetcodeList.value];
     
     if (dataToExport.length === 0) {
       $swal.fire({
@@ -638,82 +761,121 @@ const handleDownloadCSV = () => {
     const displayHours = hours % 12 || 12;
     const formattedDateTime = `Date : ${day}/${month}/${year} ${String(displayHours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
     
-    // Helper function to escape CSV field (handles commas, quotes, and newlines)
+    // Helper function to escape CSV field
     const escapeCSVField = (field) => {
       if (field === null || field === undefined) return '';
       const str = String(field);
-      // If field contains comma, quote, or newline, wrap it in quotes and escape existing quotes
       if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
         return `"${str.replace(/"/g, '""')}"`;
       }
       return str;
     };
     
-    // CSV Headers
-    const headers = ['No.', 'Level', 'Budget Code', 'Description', 'Status'];
+    // CSV Headers (exportColumns already set above)
+    const columnToOptionsMap = {"Level":"lbc_levelOptions","Budget Code":"lbc_budget_codeOptions","Status":"lbc_statusOptions"};
+    const columnDateTypeMap = {};
+    const headers = ['No.', ...exportColumns];
     
-    // Build CSV content with title and date/time
+    // Build options lookup object for dropdown/radio/checkbox/listbox columns
+    const columnOptionsLookup = {};
+    columnOptionsLookup["Level"] = lbc_levelOptions.value;
+    columnOptionsLookup["Budget Code"] = lbc_budget_codeOptions.value;
+    columnOptionsLookup["Status"] = lbc_statusOptions.value;
+    
+    // Build smart filter options lookup for dropdown/radio/checkbox/listbox filter fields
+    const smartFilterOptionsLookup = {};
+    if (typeof lbc_level_filterOptions !== 'undefined') smartFilterOptionsLookup["lbc_level_filter_filter"] = lbc_level_filterOptions.value;
+    if (typeof lbc_status_filterOptions !== 'undefined') smartFilterOptionsLookup["lbc_status_filter_filter"] = lbc_status_filterOptions.value;
+    
+    // Build top filter options lookup for dropdown/radio/checkbox/listbox filter fields
+    const topFilterOptionsLookup = {};
+    
+    
+    // Build CSV content
     let csvContent = '';
-    
-    // Add date/time (right-aligned by adding empty cells before it)
-    // For CSV, we'll add it as a separate row
     csvContent += escapeCSVField(formattedDateTime) + '\n';
-    
-    // Add title
-    const title = 'Budget Code List';
-    csvContent += escapeCSVField(title) + '\n';
+    csvContent += escapeCSVField("Budget Code") + '\n';
     
     // Add search keyword if any
     if (searchKeyword.value && searchKeyword.value.trim() !== '') {
       csvContent += escapeCSVField(`Search: ${searchKeyword.value.trim()}`) + '\n';
     }
     
-    // Add smart filter values if any
-    const filterLabels = {
-      lbc_level_filter: 'Level',
-      lbc_budget_code_filter: 'Budget Code',
-      lbc_description_filter: 'Description',
-      lbc_status_filter: 'Status',
-    };
+    // Add top filter values if any
+    const activeTopFilters = [];
+    Object.keys(topFilter.value).forEach((key) => {
+      if (topFilter.value[key] && String(topFilter.value[key]).trim() !== '') {
+        // Use topFilterLabels for proper display label, fallback to key
+        const displayLabel = (typeof topFilterLabels !== 'undefined' && topFilterLabels[key]) ? topFilterLabels[key] : key;
+        // For dropdown/radio/checkbox/listbox fields, convert value to label using options
+        let displayValue = String(topFilter.value[key]).trim();
+        if (topFilterOptionsLookup[key]) {
+          displayValue = getLookupLabel(topFilterOptionsLookup[key], displayValue);
+        }
+        activeTopFilters.push(`${displayLabel}: ${displayValue}`);
+      }
+    });
     
+    if (activeTopFilters.length > 0) {
+      activeTopFilters.forEach(filter => {
+        csvContent += escapeCSVField(filter) + '\n';
+      });
+    }
+    
+    // Add smart filter values if any
     const activeFilters = [];
-    if (smartFilter.value.lbc_level_filter && smartFilter.value.lbc_level_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_level_filter}: ${smartFilter.value.lbc_level_filter.trim()}`);
-    }
-    if (smartFilter.value.lbc_budget_code_filter && smartFilter.value.lbc_budget_code_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_budget_code_filter}: ${smartFilter.value.lbc_budget_code_filter.trim()}`);
-    }
-    if (smartFilter.value.lbc_description_filter && smartFilter.value.lbc_description_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_description_filter}: ${smartFilter.value.lbc_description_filter.trim()}`);
-    }
-    if (smartFilter.value.lbc_status_filter && smartFilter.value.lbc_status_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_status_filter}: ${smartFilter.value.lbc_status_filter.trim()}`);
-    }
+    Object.keys(smartFilter.value).forEach((key) => {
+      if (smartFilter.value[key] && String(smartFilter.value[key]).trim() !== '') {
+        // Use smartFilterLabels for proper display label, fallback to fieldName
+        const displayLabel = (typeof smartFilterLabels !== 'undefined' && smartFilterLabels[key]) ? smartFilterLabels[key] : key.replace(/_filter$/, "");
+        // For dropdown/radio/checkbox/listbox fields, convert value to label using options
+        let displayValue = String(smartFilter.value[key]).trim();
+        if (smartFilterOptionsLookup[key]) {
+          displayValue = getLookupLabel(smartFilterOptionsLookup[key], displayValue);
+        }
+        activeFilters.push(`${displayLabel}: ${displayValue}`);
+      }
+    });
     
-    // Add smart filter values if any
     if (activeFilters.length > 0) {
       activeFilters.forEach(filter => {
         csvContent += escapeCSVField(filter) + '\n';
       });
     }
     
-    // Add blank line for spacing (only if there are filters or search)
-    if ((searchKeyword.value && searchKeyword.value.trim() !== '') || activeFilters.length > 0) {
+    // Add blank line if there are filters or search
+    if ((searchKeyword.value && searchKeyword.value.trim() !== '') || activeTopFilters.length > 0 || activeFilters.length > 0) {
       csvContent += '\n';
     }
     
     // Add headers
     csvContent += headers.map(escapeCSVField).join(',') + '\n';
     
-    // Add data rows
+    const formatCell = (item, col, val) => {
+      const options = columnOptionsLookup[col];
+      const dateType = columnDateTypeMap[col];
+      const value = val !== undefined ? val : item[col];
+      if (options) return (getLookupLabel(options, value) || '').toString();
+      if (dateType === 'datetime') return formatDateTime(value);
+      if (dateType === 'date') return formatDate(value);
+      return (value || '').toString();
+    };
+    
+    const { groupedInfo, columnTitleIndices } = exportConfig || {};
+    // Add data rows (with grouping like PDF - empty for rowspan 0 covered cells)
     dataToExport.forEach((item, index) => {
-      const row = [
-        (index + 1).toString(),
-        item.Level || '',
-        item['Budget Code'] || '',
-        item.Description || '',
-        item.Status || '',
-      ];
+      const row = [(index + 1).toString()];
+      exportColumns.forEach((col, colIdx) => {
+        const titleIdx = columnTitleIndices?.[colIdx];
+        const cellInfo = groupedInfo?.[index]?.[titleIdx];
+        if (cellInfo?.rowspan > 0) {
+          row.push(formatCell(item, col, cellInfo.value));
+        } else if (cellInfo?.rowspan === 0) {
+          row.push('');
+        } else {
+          row.push(formatCell(item, col));
+        }
+      });
       csvContent += row.map(escapeCSVField).join(',') + '\n';
     });
     
@@ -723,14 +885,13 @@ const handleDownloadCSV = () => {
     const url = URL.createObjectURL(blob);
     
     link.setAttribute('href', url);
-    link.setAttribute('download', `Budget_Code_List_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Budget_Code_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    // Clean up the URL object
     URL.revokeObjectURL(url);
     
     $swal.fire({
@@ -749,63 +910,16 @@ const handleDownloadCSV = () => {
     });
   }
 };
-
 // Download Excel function
 const handleDownloadExcel = async () => {
   try {
     // Import ExcelJS dynamically for better styling support
     const ExcelJS = await import('exceljs');
     
-    // Get current filtered data
-    let dataToExport = [...filteredBudgetCodeList.value];
-    
-    // Apply current sort from table if available (same logic as PDF/CSV)
-    if (tableRef.value && tableRef.value.currentSort !== undefined && tableRef.value.currentSort !== null) {
-      const sortIndex = tableRef.value.currentSort;
-      const sortDir = tableRef.value.currentSortDir || 'asc';
-      const columnTitles = tableRef.value.columnTitle || [];
-      
-      if (columnTitles.length > 0 && sortIndex >= 0 && sortIndex < columnTitles.length) {
-        const columnTitle = columnTitles[sortIndex];
-        
-        // Skip sorting for 'No' and 'Action' columns
-        if (columnTitle && columnTitle !== 'no' && columnTitle !== 'No' && columnTitle !== 'action' && columnTitle !== 'Action') {
-          // Map column titles to actual field names in the data
-          let fieldName = columnTitle;
-          
-          if (columnTitle === 'Level' || columnTitle === 'level') {
-            fieldName = 'Level';
-          } else if (columnTitle === 'Budget Code' || columnTitle === 'budgetCode' || columnTitle === 'BudgetCode') {
-            fieldName = 'Budget Code';
-          } else if (columnTitle === 'Description' || columnTitle === 'description') {
-            fieldName = 'Description';
-          } else if (columnTitle === 'Status' || columnTitle === 'status') {
-            fieldName = 'Status';
-          }
-          
-          // Apply sorting
-          dataToExport = [...dataToExport].sort((a, b) => {
-            let aVal = a[fieldName];
-            let bVal = b[fieldName];
-            
-            if (aVal === null || aVal === undefined || aVal === '') aVal = '-';
-            if (bVal === null || bVal === undefined || bVal === '') bVal = '-';
-            
-            if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-            if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-            
-            const isNumeric = (n) => !isNaN(parseFloat(n)) && isFinite(n);
-            if (isNumeric(aVal)) aVal = parseFloat(aVal);
-            if (isNumeric(bVal)) bVal = parseFloat(bVal);
-            
-            let modifier = sortDir === 'desc' ? -1 : 1;
-            if (aVal < bVal) return -1 * modifier;
-            if (aVal > bVal) return 1 * modifier;
-            return 0;
-          });
-        }
-      }
-    }
+    // Get export config from table (respects hidden, moved, grouped columns) or fallback to filtered list
+    const exportConfig = datatableRef.value?.getExportConfig?.() ?? (typeof exportConfigRef.value === 'function' ? exportConfigRef.value() : null);
+    const exportColumns = exportConfig ? exportConfig.columns : ["Level","Budget Code","Description","Status"];
+    let dataToExport = exportConfig ? [...exportConfig.data] : [...filteredBudgetcodeList.value];
     
     if (dataToExport.length === 0) {
       $swal.fire({
@@ -816,7 +930,7 @@ const handleDownloadExcel = async () => {
       return;
     }
     
-    // Format current date and time
+    // Format current date and time: Date : 05/05/2025 11:25:02 AM
     const now = new Date();
     const day = String(now.getDate()).padStart(2, '0');
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -835,36 +949,58 @@ const handleDownloadExcel = async () => {
     worksheetData.push([formattedDateTime]);
     
     // Add title (row 2)
-    worksheetData.push(['Budget Code List']);
+    worksheetData.push(["Budget Code"]);
     
     // Add search keyword if any
     if (searchKeyword.value && searchKeyword.value.trim() !== '') {
       worksheetData.push([`Search: ${searchKeyword.value.trim()}`]);
     }
     
-    // Add smart filter values if any
-    const filterLabels = {
-      lbc_level_filter: 'Level',
-      lbc_budget_code_filter: 'Budget Code',
-      lbc_description_filter: 'Description',
-      lbc_status_filter: 'Status',
-    };
+    // Build smart filter options lookup for dropdown/radio/checkbox/listbox filter fields
+    const smartFilterOptionsLookup = {};
+    if (typeof lbc_level_filterOptions !== 'undefined') smartFilterOptionsLookup["lbc_level_filter_filter"] = lbc_level_filterOptions.value;
+    if (typeof lbc_status_filterOptions !== 'undefined') smartFilterOptionsLookup["lbc_status_filter_filter"] = lbc_status_filterOptions.value;
     
+    // Build top filter options lookup for dropdown/radio/checkbox/listbox filter fields
+    const topFilterOptionsLookup = {};
+    
+    
+    // Add top filter values if any
+    const activeTopFilters = [];
+    Object.keys(topFilter.value).forEach((key) => {
+      if (topFilter.value[key] && String(topFilter.value[key]).trim() !== '') {
+        // Use topFilterLabels for proper display label, fallback to key
+        const displayLabel = (typeof topFilterLabels !== 'undefined' && topFilterLabels[key]) ? topFilterLabels[key] : key;
+        // For dropdown/radio/checkbox/listbox fields, convert value to label using options
+        let displayValue = String(topFilter.value[key]).trim();
+        if (topFilterOptionsLookup[key]) {
+          displayValue = getLookupLabel(topFilterOptionsLookup[key], displayValue);
+        }
+        activeTopFilters.push(`${displayLabel}: ${displayValue}`);
+      }
+    });
+    
+    if (activeTopFilters.length > 0) {
+      activeTopFilters.forEach(filter => {
+        worksheetData.push([filter]);
+      });
+    }
+    
+    // Add smart filter values if any
     const activeFilters = [];
-    if (smartFilter.value.lbc_level_filter && smartFilter.value.lbc_level_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_level_filter}: ${smartFilter.value.lbc_level_filter.trim()}`);
-    }
-    if (smartFilter.value.lbc_budget_code_filter && smartFilter.value.lbc_budget_code_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_budget_code_filter}: ${smartFilter.value.lbc_budget_code_filter.trim()}`);
-    }
-    if (smartFilter.value.lbc_description_filter && smartFilter.value.lbc_description_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_description_filter}: ${smartFilter.value.lbc_description_filter.trim()}`);
-    }
-    if (smartFilter.value.lbc_status_filter && smartFilter.value.lbc_status_filter.trim() !== '') {
-      activeFilters.push(`${filterLabels.lbc_status_filter}: ${smartFilter.value.lbc_status_filter.trim()}`);
-    }
+    Object.keys(smartFilter.value).forEach((key) => {
+      if (smartFilter.value[key] && String(smartFilter.value[key]).trim() !== '') {
+        // Use smartFilterLabels for proper display label, fallback to fieldName
+        const displayLabel = (typeof smartFilterLabels !== 'undefined' && smartFilterLabels[key]) ? smartFilterLabels[key] : key.replace(/_filter$/, "");
+        // For dropdown/radio/checkbox/listbox fields, convert value to label using options
+        let displayValue = String(smartFilter.value[key]).trim();
+        if (smartFilterOptionsLookup[key]) {
+          displayValue = getLookupLabel(smartFilterOptionsLookup[key], displayValue);
+        }
+        activeFilters.push(`${displayLabel}: ${displayValue}`);
+      }
+    });
     
-    // Add smart filter values if any
     if (activeFilters.length > 0) {
       activeFilters.forEach(filter => {
         worksheetData.push([filter]);
@@ -872,39 +1008,76 @@ const handleDownloadExcel = async () => {
     }
     
     // Add blank row for spacing
-    if ((searchKeyword.value && searchKeyword.value.trim() !== '') || activeFilters.length > 0) {
+    if ((searchKeyword.value && searchKeyword.value.trim() !== '') || activeTopFilters.length > 0 || activeFilters.length > 0) {
       worksheetData.push([]);
     }
     
-    // Add headers
-    worksheetData.push(['No.', 'Level', 'Budget Code', 'Description', 'Status']);
+    // Add headers (exportColumns already set above)
+    const columnToOptionsMap = {"Level":"lbc_levelOptions","Budget Code":"lbc_budget_codeOptions","Status":"lbc_statusOptions"};
+    const columnDateTypeMap = {};
+    worksheetData.push(['No.', ...exportColumns]);
     
-    // Add data rows
-    dataToExport.forEach((item, index) => {
-      worksheetData.push([
-        (index + 1).toString(),
-        item.Level || '',
-        item['Budget Code'] || '',
-        item.Description || '',
-        item.Status || '',
-      ]);
-    });
+    // Build options lookup object for dropdown/radio/checkbox/listbox columns
+    const columnOptionsLookup = {};
+    columnOptionsLookup["Level"] = lbc_levelOptions.value;
+    columnOptionsLookup["Budget Code"] = lbc_budget_codeOptions.value;
+    columnOptionsLookup["Status"] = lbc_statusOptions.value;
     
     // Calculate header row index (0-based)
-    // Row 0: date/time, Row 1: title, then search/filters/blank, then headers
     let headerRowIndex = 2; // Start after date/time (0) and title (1), so headers are at index 2
     if (searchKeyword.value && searchKeyword.value.trim() !== '') {
       headerRowIndex++; // Add search row
     }
-    headerRowIndex += activeFilters.length; // Add filter rows
-    if ((searchKeyword.value && searchKeyword.value.trim() !== '') || activeFilters.length > 0) {
+    headerRowIndex += activeTopFilters.length; // Add top filter rows
+    headerRowIndex += activeFilters.length; // Add smart filter rows
+    if ((searchKeyword.value && searchKeyword.value.trim() !== '') || activeTopFilters.length > 0 || activeFilters.length > 0) {
       headerRowIndex++; // Add blank row
     }
-    // Now headerRowIndex points to the header row (0-based) - the row with "No.", "Level", "Budget Code", etc.
+    
+    // Grouped merge support (from exportConfig)
+    const groupedInfo = exportConfig?.groupedInfo ?? null;
+    const columnTitleIndices = exportConfig?.columnTitleIndices ?? [];
+    const columnTitleIndexToExportIndex = {};
+    columnTitleIndices.forEach((ti, ei) => {
+      if (ti >= 0) columnTitleIndexToExportIndex[ti] = ei;
+    });
+    
+    // Add data rows
+    dataToExport.forEach((item, index) => {
+      const row = [(index + 1).toString()];
+      exportColumns.forEach((col, colIdx) => {
+        // For grouped columns with rowspan 0, use empty (merged with cell above)
+        const colTitleIdx = columnTitleIndices[colIdx];
+        const grp = groupedInfo?.[index]?.[colTitleIdx];
+        if (grp && grp.rowspan === 0) {
+          row.push('');
+          return;
+        }
+        // Check if this column has a lookup (dropdown/radio/checkbox/listbox)
+        const options = columnOptionsLookup[col];
+        // Check if this column is a date/datetime column
+        const dateType = columnDateTypeMap[col];
+        
+        if (options) {
+          // Use getLookupLabel to convert value to label
+          const label = getLookupLabel(options, item[col]);
+          row.push(label || '');
+        } else if (dateType === 'datetime') {
+          // Format as datetime: DD/MM/YYYY HH:MI:SS AM/PM
+          row.push(formatDateTime(item[col]));
+        } else if (dateType === 'date') {
+          // Format as date: DD/MM/YYYY
+          row.push(formatDate(item[col]));
+        } else {
+          row.push(item[col] || '');
+        }
+      });
+      worksheetData.push(row);
+    });
     
     // Create workbook and worksheet using ExcelJS
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Budget Code List');
+    const worksheet = workbook.addWorksheet("Budget Code");
     
     // Add all rows to worksheet
     worksheetData.forEach((row, rowIndex) => {
@@ -921,8 +1094,8 @@ const handleDownloadExcel = async () => {
           cell.font = {
             bold: true
           };
-          // Center align for No., Level, and Status columns
-          if (colNumber === 1 || colNumber === 2 || colNumber === 5) {
+          // Center align for No. column (colNumber 1)
+          if (colNumber === 1) {
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
           } else {
             cell.alignment = { horizontal: 'left', vertical: 'middle' };
@@ -933,13 +1106,38 @@ const handleDownloadExcel = async () => {
     
     // Set column widths
     worksheet.getColumn(1).width = 8;  // No.
-    worksheet.getColumn(2).width = 10; // Level
-    worksheet.getColumn(3).width = 20; // Budget Code
-    worksheet.getColumn(4).width = 50; // Description
-    worksheet.getColumn(5).width = 15; // Status
+    exportColumns.forEach((col, index) => {
+      worksheet.getColumn(index + 2).width = 20; // Data columns
+    });
+    
+    // Apply merged cells for grouped columns
+    if (groupedInfo && columnTitleIndices.length > 0) {
+      const firstDataRowExcel = headerRowIndex + 2; // 1-based Excel row
+      for (let ri = 0; ri < dataToExport.length; ri++) {
+        const grpRow = groupedInfo[ri];
+        if (!grpRow) continue;
+        for (const [colTitleIdxStr, info] of Object.entries(grpRow)) {
+          const colTitleIdx = parseInt(colTitleIdxStr, 10);
+          if (!info || info.rowspan <= 1) continue;
+          const exportColIdx = columnTitleIndexToExportIndex[colTitleIdx];
+          if (exportColIdx == null) continue;
+          const excelCol = exportColIdx + 2; // +1 for 1-based, +1 for No. column
+          const startRow = firstDataRowExcel + ri;
+          const endRow = startRow + info.rowspan - 1;
+          worksheet.mergeCells(startRow, excelCol, endRow, excelCol);
+          // Center merged cell vertically
+          const cell = worksheet.getCell(startRow, excelCol);
+          if (cell.alignment) {
+            cell.alignment.vertical = 'middle';
+          } else {
+            cell.alignment = { vertical: 'middle' };
+          }
+        }
+      }
+    }
     
     // Generate Excel file and download
-    const fileName = `Budget_Code_List_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const fileName = `Budget_Code_${new Date().toISOString().split('T')[0]}.xlsx`;
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const link = document.createElement('a');
@@ -983,110 +1181,54 @@ const handleDownloadExcel = async () => {
   }
 };
 
-// Save Budget Code
-const handleSaveBudgetCode = async () => {
-  // Validation
-  if (
-    !budgetCodeForm.value.lbc_level ||
-    !budgetCodeForm.value.lbc_budget_code ||
-    !budgetCodeForm.value.lbc_status
-  ) {
-    $swal.fire({
-      title: "Validation Error",
-      text: "Please fill in all required fields",
-      icon: "warning",
-    });
-    return;
-  }
 
-  try {
-    loading.value = true;
-    let response;
-
-    if (isEditMode.value && editingId.value) {
-      // Update existing record
-      response = await useFetch(`/api/budget/setup/budget-code/${editingId.value}`, {
-        method: "PUT",
-        body: {
-          lbc_level: budgetCodeForm.value.lbc_level,
-          lbc_budget_code: budgetCodeForm.value.lbc_budget_code,
-          lbc_description: budgetCodeForm.value.lbc_description,
-          lbc_status: budgetCodeForm.value.lbc_status,
-        },
-        initialCache: false,
-      });
-    } else {
-      // Add new record
-      response = await useFetch("/api/budget/setup/budget-code", {
-        method: "POST",
-        body: {
-          lbc_level: budgetCodeForm.value.lbc_level,
-          lbc_budget_code: budgetCodeForm.value.lbc_budget_code,
-          lbc_description: budgetCodeForm.value.lbc_description,
-          lbc_status: budgetCodeForm.value.lbc_status,
-        },
-        initialCache: false,
-      });
-    }
-
-    if (response.data.value?.statusCode === 200 || response.data.value?.statusCode === 201) {
-      $swal.fire({
-        title: "Success",
-        text: isEditMode.value ? "Budget code updated successfully" : "Budget code created successfully",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      
-      // Refresh data from API
-      await fetchBudgetCodes();
-      
-      // Reset form and close modal
-      showBudgetCodeModal.value = false;
-      budgetCodeForm.value = {
-        lbc_id: "",
-        lbc_level: "",
-        lbc_budget_code: "",
-        lbc_description: "",
-        lbc_status: "ACTIVE",
-      };
-    } else {
-      $swal.fire({
-        title: "Error",
-        text: response.data.value?.message || "Failed to save budget code",
-        icon: "error",
-      });
-    }
-  } catch (error) {
-    console.error("Error saving budget code:", error);
-    $swal.fire({
-      title: "Error",
-      text: "An error occurred while saving budget code",
-      icon: "error",
-    });
-  } finally {
-    loading.value = false;
-  }
+// View function
+const handleView = (item) => {
+  isViewMode.value = true;
+  isEditMode.value = false;
+  editingId.value = item.id || Object.values(item)[0];
+  budgetcodeForm.value = { ...item };
+  
+  showBudgetcodeModal.value = true;
 };
 
-// Cancel Budget Code form
-const handleCancelBudgetCode = () => {
-  showBudgetCodeModal.value = false;
+// Edit function
+const handleEdit = (item) => {
+  isEditMode.value = true;
   isViewMode.value = false;
-  budgetCodeForm.value = {
-    lbc_id: "",
-    lbc_level: "",
-    lbc_budget_code: "",
-    lbc_description: "",
-    lbc_status: "ACTIVE",
-  };
+  editingId.value = item.id || Object.values(item)[0];
+  // Copy only the aliased fields (form fields) to avoid sending stale original field values
+  // This prevents original database fields (like lde_value) from overwriting edited alias values (like Code)
+  // The PUT endpoint processes original fields LAST, so they would overwrite alias values if both are present
+  // Only copy aliased fields (form fields) - exclude original database fields to prevent stale values
+  const formFields = ["id","lbc_id","Level","Budget_Code","Description","Status","lbc_level","lbc_budget_code","lbc_description","lbc_status"];
+  budgetcodeForm.value = {};
+  formFields.forEach((fieldName) => {
+    if (item[fieldName] !== undefined) {
+      budgetcodeForm.value[fieldName] = item[fieldName];
+    }
+  });
+  showBudgetcodeModal.value = true;
+};
+
+// Add function
+const handleAdd = () => {
+  isEditMode.value = false;
+  isViewMode.value = false;
+  editingId.value = null;
+  budgetcodeForm.value = {};
+  
+  showBudgetcodeModal.value = true;
 };
 
 // Delete function
 const handleDelete = async (item) => {
+  const messageText = "Are you sure? Do you want to delete this record?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
-    text: `Do you want to delete budget code "${item["Budget Code"]}"?`,
+    text: `Do you want to delete this record?`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#d33",
@@ -1095,10 +1237,13 @@ const handleDelete = async (item) => {
     cancelButtonText: "Cancel",
   });
 
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
+
   if (result.isConfirmed) {
     try {
       loading.value = true;
-      const response = await useFetch(`/api/budget/setup/budget-code/${item.lbc_id}`, {
+      const apiPath = "/api/budget/setup/budget-code";
+      const response = await useFetch(`${apiPath}/${item.id || Object.values(item)[0]}`, {
         method: "DELETE",
         initialCache: false,
       });
@@ -1106,26 +1251,26 @@ const handleDelete = async (item) => {
       if (response.data.value?.statusCode === 200) {
         $swal.fire({
           title: "Deleted!",
-          text: "Budget code has been deleted.",
+          text: "Record has been deleted.",
           icon: "success",
           timer: 2000,
           showConfirmButton: false,
         });
         
         // Refresh data from API
-        await fetchBudgetCodes();
+        await fetchData();
       } else {
         $swal.fire({
           title: "Error",
-          text: response.data.value?.message || "Failed to delete budget code",
+          text: response.data.value?.message || "Failed to delete record",
           icon: "error",
         });
       }
     } catch (error) {
-      console.error("Error deleting budget code:", error);
+      console.error("Error deleting record:", error);
       $swal.fire({
         title: "Error",
-        text: "An error occurred while deleting budget code",
+        text: "An error occurred while deleting record",
         icon: "error",
       });
     } finally {
@@ -1133,15 +1278,128 @@ const handleDelete = async (item) => {
     }
   }
 };
+
+// Save function
+const handleSaveBudgetcode = async () => {
+  try {
+    loading.value = true;
+    const apiPath = "/api/budget/setup/budget-code";
+    let response;
+
+    if (isEditMode.value && editingId.value) {
+      // Update existing record
+      response = await useFetch(`${apiPath}/${editingId.value}`, {
+        method: "PUT",
+        body: budgetcodeForm.value,
+        initialCache: false,
+      });
+    } else {
+      // Add new record
+      response = await useFetch(apiPath, {
+        method: "POST",
+        body: budgetcodeForm.value,
+        initialCache: false,
+      });
+    }
+
+    if (response.data.value?.statusCode === 200 || response.data.value?.statusCode === 201) {
+      const successMessage = isEditMode.value ? "Success. " + pageNameForLog + " updated successfully" : "Success. " + pageNameForLog + " is created successfully";
+      $swal.fire({
+        title: "Success",
+        text: successMessage,
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      if (isEditMode.value) {
+        await logUpdateSuccess(successMessage, pageNameForLog + " updated");
+      } else {
+        await logCreateSuccess(successMessage, pageNameForLog + " created");
+      }
+      
+      // Refresh data from API
+      await fetchData();
+      
+      // Reset form and close modal
+      showBudgetcodeModal.value = false;
+      budgetcodeForm.value = {};
+    } else {
+      $swal.fire({
+        title: "Error",
+        text: response.data.value?.message || "Failed to save record",
+        icon: "error",
+      });
+    }
+  } catch (error) {
+    console.error("Error saving record:", error);
+    $swal.fire({
+      title: "Error",
+      text: "An error occurred while saving record",
+      icon: "error",
+    });
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Cancel form
+const handleCancelBudgetcode = () => {
+  showBudgetcodeModal.value = false;
+  isViewMode.value = false;
+  budgetcodeForm.value = {};
+};
+
+
+
+// Initialize on mount
+onMounted(() => {
+  const kerisiApiKey = route.query?.kerisiApiKey;
+  if (kerisiApiKey) {
+    const kerisiExportSlug = route.path.split("/").filter(Boolean).pop() || "export";
+    window.location.href = `/api/kerisi-export/${kerisiExportSlug}?kerisiApiKey=${encodeURIComponent(kerisiApiKey)}`;
+    return;
+  }
+  fetchDropdownOptions();
+  fetchData();
+});
 </script>
 
 <template>
   <div class="space-y-6">
+    <input
+      ref="templateFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden"
+      @change="onTemplateFileChange"
+    />
+    
     <LayoutsBreadcrumb />
-
+    <!-- Datatable -->
     <rs-card>
       <template #header>
-        <div class="text-lg font-semibold">Budget Code</div>
+        <div class="flex justify-between items-center">
+          <div class="text-lg font-semibold">Budget Code</div>
+          <rs-dropdown
+            variant="secondary-text"
+            size="sm"
+            :hideChevron="true"
+            position="bottom"
+            textAlign="right"
+            itemSize="11rem"
+            class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+          >
+            <template #title>
+              <Icon name="mdi:dots-vertical" size="1rem" />
+            </template>
+            <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+            <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+            <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+            <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+            <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+          </rs-dropdown>
+        </div>
       </template>
       <template #body>
         <div class="space-y-4">
@@ -1149,8 +1407,9 @@ const handleDelete = async (item) => {
           <div class="flex justify-between items-center gap-4 mb-4">
             <!-- Display on Left -->
             <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Display:</label>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300" for="budgetcode_pageSize">Display:</label>
               <FormKit
+                id="budgetcode_pageSize"
                 type="select"
                 v-model="pageSize"
                 :options="[
@@ -1166,9 +1425,10 @@ const handleDelete = async (item) => {
 
             <!-- Search on Right -->
             <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Search:</label>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300" for="budgetcode_searchKeyword">Search:</label>
               <div class="flex gap-2">
                 <FormKit
+                  id="budgetcode_searchKeyword"
                   v-model="searchKeyword"
                   type="text"
                   placeholder="Search..."
@@ -1204,22 +1464,24 @@ const handleDelete = async (item) => {
           </div>
 
           <!-- Table with built-in search and pagination -->
-          <div class="budget-code-table-wrapper">
+          <div class="budgetcode-table-wrapper">
             <div v-if="loading" class="text-center py-8">
               <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               <p class="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
             </div>
             <rs-table
               v-else
-              ref="tableRef"
-              :key="`budget-code-table-${searchKeyword || 'all'}-${pageSize}`"
-              :data="filteredBudgetCodeList"
-              :field="['no', 'Level', 'Budget Code', 'Description', 'Status', 'Action']"
+              ref="datatableRef"
+              :exportConfigRef="exportConfigRef"
+              :key="`budgetcode-table`"
+              :data="filteredBudgetcodeList"
+              :field='["no","Level","Budget Code","Description","Status","Action"]'
               :options="{
                 variant: 'primary',
                 striped: false,
                 bordered: false,
                 borderless: true,
+                
               }"
               :optionsAdvanced="{
                 sortable: true,
@@ -1229,31 +1491,32 @@ const handleDelete = async (item) => {
               }"
               advanced
               :pageSize="pageSize"
+              :hideTableSearch="true"
+              :hideTablePageSize="true"
+              
+              
+              
+              :columnMovable="true"
+              :columnHideShow="true"
+              :columnGroupingList="isGrouped"
             >
               <template v-slot:no="data">
                 {{ data.value.no }}
               </template>
               <template v-slot:Level="data">
-                {{ data.value.Level }}
+                {{ getLookupLabel(lbc_levelOptions, data.value.Level) }}
               </template>
               <template v-slot:BudgetCode="data">
-                {{ data.value['Budget Code'] }}
+                {{ getLookupLabel(lbc_budget_codeOptions, data.value["Budget Code"]) }}
               </template>
               <template v-slot:Description="data">
                 {{ data.value.Description }}
               </template>
               <template v-slot:Status="data">
-                <span
-                  :class="{
-                    'text-green-600 dark:text-green-400': data.value.Status === 'ACTIVE',
-                    'text-red-600 dark:text-red-400': data.value.Status === 'INACTIVE',
-                  }"
-                >
-                  {{ data.value.Status }}
-                </span>
+                {{ getLookupLabel(lbc_statusOptions, data.value.Status) }}
               </template>
               <template v-slot:Action="data">
-                <div class="flex gap-2 justify-end">
+                <div class="flex gap-2 justify-start">
                   <button
                     @click="handleView(data.value)"
                     class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
@@ -1289,6 +1552,7 @@ const handleDelete = async (item) => {
                   </button>
                 </div>
               </template>
+
             </rs-table>
           </div>
 
@@ -1320,6 +1584,7 @@ const handleDelete = async (item) => {
       </template>
     </rs-card>
 
+
     <!-- Smart Filter Modal -->
     <rs-modal
       v-model="showSmartFilter"
@@ -1344,21 +1609,21 @@ const handleDelete = async (item) => {
       <template #body>
         <FormKit type="form" :actions="false">
           <div class="space-y-4">
-            <!-- Level -->
             <div class="flex items-center gap-4">
-              <label class="w-32 text-sm font-medium">Level:</label>
+              <label class="w-32 text-sm font-medium" for="smartFilter_Level">Level:</label>
               <div class="flex-1 relative">
                 <FormKit
-                  v-model="smartFilter.lbc_level_filter"
+                  id="smartFilter_Level"
+                  v-model="smartFilter.Level_filter"
                   type="select"
-                  :options="levelOptions"
+                  :options="lbc_level_filterOptions"
                   placeholder="Select Level"
                   outer-class="mb-0"
                 />
                 <button
-                  v-if="smartFilter.lbc_level_filter"
+                  v-if="smartFilter.Level_filter"
                   type="button"
-                  @click="smartFilter.lbc_level_filter = ''"
+                  @click="smartFilter.Level_filter = ''"
                   class="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 >
                   <Icon
@@ -1368,48 +1633,59 @@ const handleDelete = async (item) => {
                 </button>
               </div>
             </div>
-
-            <!-- Budget Code -->
             <div class="flex items-center gap-4">
-              <label class="w-32 text-sm font-medium">Budget Code:</label>
-              <div class="flex-1">
+              <label class="w-32 text-sm font-medium" for="smartFilter_Budget_Code">Budget Code:</label>
+              <div class="flex-1 relative">
                 <FormKit
-                  v-model="smartFilter.lbc_budget_code_filter"
-                  type="text"
-                  placeholder="Enter Budget Code"
+                  id="smartFilter_Budget_Code"
+                  v-model="smartFilter.Budget_Code_filter"
+                  type="select"
+                  :options="[]"
+                  placeholder="Select Budget Code"
                   outer-class="mb-0"
                 />
+                <button
+                  v-if="smartFilter.Budget_Code_filter"
+                  type="button"
+                  @click="smartFilter.Budget_Code_filter = ''"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  <Icon
+                    name="material-symbols:close"
+                    class="!w-4 !h-4 text-gray-500"
+                  />
+                </button>
               </div>
             </div>
-
-            <!-- Description -->
             <div class="flex items-center gap-4">
-              <label class="w-32 text-sm font-medium">Description:</label>
+              <label class="w-32 text-sm font-medium" for="smartFilter_Description">Description:</label>
               <div class="flex-1">
                 <FormKit
-                  v-model="smartFilter.lbc_description_filter"
+                  id="smartFilter_Description"
+                  v-model="smartFilter.Description_filter"
                   type="text"
+                  
                   placeholder="Enter Description"
                   outer-class="mb-0"
                 />
+                
               </div>
             </div>
-
-            <!-- Status -->
             <div class="flex items-center gap-4">
-              <label class="w-32 text-sm font-medium">Status:</label>
+              <label class="w-32 text-sm font-medium" for="smartFilter_Status">Status:</label>
               <div class="flex-1 relative">
                 <FormKit
-                  v-model="smartFilter.lbc_status_filter"
+                  id="smartFilter_Status"
+                  v-model="smartFilter.Status_filter"
                   type="select"
-                  :options="statusOptions"
+                  :options="lbc_status_filterOptions"
                   placeholder="Select Status"
                   outer-class="mb-0"
                 />
                 <button
-                  v-if="smartFilter.lbc_status_filter"
+                  v-if="smartFilter.Status_filter"
                   type="button"
-                  @click="smartFilter.lbc_status_filter = ''"
+                  @click="smartFilter.Status_filter = ''"
                   class="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 >
                   <Icon
@@ -1434,23 +1710,23 @@ const handleDelete = async (item) => {
       </template>
     </rs-modal>
 
-    <!-- Add/Edit Budget Code Modal -->
+    <!-- Add/Edit Modal -->
     <rs-modal
-      v-model="showBudgetCodeModal"
+      v-model="showBudgetcodeModal"
       title="Budget Code"
       size="lg"
-      dialog-class="budget-code-modal-custom"
+      dialog-class="budgetcode-modal-custom"
       :overlay-close="true"
       :hide-footer="false"
       position="center"
     >
       <template #header>
-        <div class="flex items-center justify-between w-full bg-primary text-white px-3 py-2 rounded-t-lg budget-code-modal-header">
+        <div class="flex items-center justify-between w-full bg-primary text-white px-3 py-2 rounded-t-lg budgetcode-modal-header">
           <h4 class="text-base font-semibold text-white">
             {{ isViewMode ? 'View Budget Code' : (isEditMode ? 'Edit Budget Code' : 'Add Budget Code') }}
           </h4>
           <Icon
-            @click="handleCancelBudgetCode"
+            @click="handleCancelBudgetcode"
             class="hover:text-gray-200 cursor-pointer text-white"
             name="ic:round-close"
             size="18"
@@ -1458,80 +1734,87 @@ const handleDelete = async (item) => {
         </div>
       </template>
       <template #body>
-        <FormKit type="form" :actions="false" @submit="handleSaveBudgetCode">
+        <FormKit type="form" :actions="false" @submit="handleSaveBudgetcode">
           <div class="space-y-2 py-2">
-            <!-- Level -->
-            <div class="flex items-center gap-2">
-              <label class="w-32 text-xs font-medium">Level<span class="text-red-500">*</span>:</label>
+            <div class="flex items-center gap-2 d-none">
+              <label class="w-32 text-xs font-medium" for="budgetcodeForm_lbc_id">ID:</label>
               <div class="flex-1">
                 <FormKit
-                  v-model="budgetCodeForm.lbc_level"
+                  id="budgetcodeForm_lbc_id"
+                  v-model="budgetcodeForm.lbc_id"
+                  type="text"
+                  
+                  :disabled="isViewMode"
+                  placeholder="Enter ID"
+                  outer-class="mb-0"
+                  
+                />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="w-32 text-xs font-medium" for="budgetcodeForm_lbc_level">Level<span class="text-red-500">*</span>:</label>
+              <div class="flex-1">
+                <FormKit
+                  id="budgetcodeForm_lbc_level"
+                  v-model="budgetcodeForm.lbc_level"
                   type="select"
-                  :options="levelOptions"
-                  :disabled="isViewMode || isEditMode"
-                  validation="required"
-                  validation-visibility="dirty"
+                  :options="lbc_levelOptions"
+                  :disabled="isViewMode"
                   placeholder="Select Level"
                   outer-class="mb-0"
-                />
-              </div>
-            </div>
-
-            <!-- Budget Code -->
-            <div class="flex items-center gap-2">
-              <label class="w-32 text-xs font-medium">Budget Code<span class="text-red-500">*</span>:</label>
-              <div class="flex-1">
-                <FormKit
-                  v-model="budgetCodeForm.lbc_budget_code"
-                  type="text"
-                  :disabled="isViewMode || isEditMode"
+                  
                   validation="required"
                   validation-visibility="dirty"
-                  placeholder="Enter Budget Code"
-                  outer-class="mb-0"
                 />
               </div>
             </div>
-
-            <!-- Description -->
             <div class="flex items-center gap-2">
-              <label class="w-32 text-xs font-medium">Description:</label>
+              <label class="w-32 text-xs font-medium" for="budgetcodeForm_lbc_budget_code">Budget Code<span class="text-red-500">*</span>:</label>
               <div class="flex-1">
                 <FormKit
-                  v-model="budgetCodeForm.lbc_description"
-                  type="text"
+                  id="budgetcodeForm_lbc_budget_code"
+                  v-model="budgetcodeForm.lbc_budget_code"
+                  type="select"
+                  :options="lbc_budget_codeOptions"
+                  :disabled="isViewMode"
+                  placeholder="Select Budget Code"
+                  outer-class="mb-0"
+                  
+                  validation="required"
+                  validation-visibility="dirty"
+                />
+              </div>
+            </div>
+            <div class="flex items-start gap-2">
+              <label class="w-32 text-xs font-medium pt-2" for="budgetcodeForm_lbc_description">Description:</label>
+              <div class="flex-1">
+                <FormKit
+                  id="budgetcodeForm_lbc_description"
+                  v-model="budgetcodeForm.lbc_description"
+                  type="textarea"
                   :disabled="isViewMode"
                   placeholder="Enter Description"
+                  rows="3"
                   outer-class="mb-0"
+                  
                 />
               </div>
             </div>
-
-            <!-- Status -->
             <div class="flex items-center gap-2">
-              <label class="w-32 text-xs font-medium">Status<span class="text-red-500">*</span>:</label>
-              <div class="flex-1 relative">
+              <label class="w-32 text-xs font-medium" for="budgetcodeForm_lbc_status">Status<span class="text-red-500">*</span>:</label>
+              <div class="flex-1">
                 <FormKit
-                  v-model="budgetCodeForm.lbc_status"
+                  id="budgetcodeForm_lbc_status"
+                  v-model="budgetcodeForm.lbc_status"
                   type="select"
-                  :options="statusOptions"
+                  :options="lbc_statusOptions"
                   :disabled="isViewMode"
-                  validation="required"
-                  validation-visibility="dirty"
                   placeholder="Select Status"
                   outer-class="mb-0"
+                  
+                  validation="required"
+                  validation-visibility="dirty"
                 />
-                <button
-                  v-if="budgetCodeForm.lbc_status && !isViewMode"
-                  type="button"
-                  @click="budgetCodeForm.lbc_status = ''"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  <Icon
-                    name="material-symbols:close"
-                    class="!w-3 !h-3 text-gray-500"
-                  />
-                </button>
               </div>
             </div>
           </div>
@@ -1539,44 +1822,119 @@ const handleDelete = async (item) => {
       </template>
       <template #footer>
         <div class="flex justify-end gap-2 py-2">
-          <rs-button variant="danger" size="sm" @click="handleCancelBudgetCode">
+          <rs-button variant="danger" size="sm" @click="handleCancelBudgetcode">
             {{ isViewMode ? 'Close' : 'Cancel' }}
           </rs-button>
-          <rs-button v-if="!isViewMode" variant="primary" size="sm" @click="handleSaveBudgetCode">
+          <rs-button v-if="!isViewMode" variant="primary" size="sm" @click="handleSaveBudgetcode">
             Save
           </rs-button>
         </div>
       </template>
     </rs-modal>
+
+    <!-- Generate API Modal -->
+    <rs-modal
+      v-model="showGenerateApiModal"
+      title="Generate API"
+      size="md"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Output Type</label>
+            <FormKit
+              v-model="apiOutputType"
+              type="select"
+              :options="[
+                { label: 'JSON', value: 'JSON' },
+                { label: 'PDF', value: 'PDF' },
+                { label: 'CSV', value: 'CSV' },
+                { label: 'EXCEL', value: 'EXCEL' },
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            A unique API key will be generated. Use the URL to access data in the selected format. JSON and PDF display in browser; CSV and Excel download.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <rs-button variant="secondary" @click="handleCloseGenerateApiModal">Cancel</rs-button>
+          <rs-button variant="primary" :disabled="generateApiLoading" @click="handleGenerateApiProceed">
+            {{ generateApiLoading ? 'Generating...' : 'Proceed' }}
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
+  
   </div>
 </template>
 
 <style scoped>
+/* Compact radio/checkbox: horizontal layout, less spacing */
+.compact-radio-checkbox :deep(ul),
+.compact-radio-checkbox :deep([class*="options"]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0 0;
+}
+.compact-radio-checkbox :deep(li) {
+  margin: 0;
+  padding: 0;
+}
+.compact-radio-checkbox :deep(label) {
+  margin-bottom: 0;
+}
+/* Text format from component item cssClass (format-uppercase, format-initcap, format-lowercase) */
+.format-uppercase :deep(input),
+.format-uppercase :deep(textarea) {
+  text-transform: uppercase;
+}
+.format-lowercase :deep(input),
+.format-lowercase :deep(textarea) {
+  text-transform: lowercase;
+}
+.format-initcap :deep(input),
+.format-initcap :deep(textarea) {
+  text-transform: capitalize;
+}
 /* Hide default table header since we're using custom header */
-.budget-code-table-wrapper :deep(.table-header) {
+.budgetcode-table-wrapper :deep(.table-header) {
   display: none;
+}
+
+/* Left-align Action column header and cells */
+.budgetcode-table-wrapper :deep(.rs-table thead th:last-child),
+.budgetcode-table-wrapper :deep(.rs-table tbody td:last-child) {
+  text-align: left !important;
 }
 </style>
 
 <style>
 /* Custom width for Budget Code modal - 75% of lg size (800px * 0.75 = 600px) */
-.budget-code-modal-custom {
+.budgetcode-modal-custom {
   width: 600px !important;
 }
 
 /* Hide default close icon when custom header is used */
-.budget-code-modal-custom .modal-header > :last-child:not(.budget-code-modal-header) {
+.budgetcode-modal-custom .modal-header > :last-child:not(.budgetcode-modal-header) {
   display: none !important;
 }
 
 /* Ensure custom header matches modal content width exactly */
-.budget-code-modal-custom .modal-header {
+.budgetcode-modal-custom .modal-header {
   padding: 0 !important;
   position: relative;
   overflow: hidden;
 }
 
-.budget-code-modal-custom .budget-code-modal-header {
+.budgetcode-modal-custom .budgetcode-modal-header {
   width: 100% !important;
   margin-left: 0 !important;
   margin-right: 0 !important;

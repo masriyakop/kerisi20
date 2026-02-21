@@ -50,6 +50,7 @@ export default defineEventHandler(async (event) => {
       collapseEnable: body.collapseEnable || 0,
       collapseByDefault: body.collapseByDefault || 0,
       visible: body.visible !== undefined ? body.visible : 1,
+      useExistingOrmModel: body.useExistingOrmModel !== undefined ? body.useExistingOrmModel : 0,
       active: body.active !== undefined ? body.active : 1,
       order: body.order || 1,
       queryMapping: body.queryMapping || "",

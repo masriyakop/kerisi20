@@ -5,141 +5,73 @@ import { readComponentItems } from "../component-item-editor/helpers";
 import fs from "fs";
 import path from "path";
 
-// Helper function to update navigation menu with generated page
-function updateNavigationMenu(menuPath, pageTitle, generatedPagePath) {
-  try {
-    const navigationFilePath = path.join(process.cwd(), "navigation", "index.js");
-    
-    if (!fs.existsSync(navigationFilePath)) {
-      console.warn("Navigation file not found:", navigationFilePath);
-      return false;
-    }
-    
-    // Read the navigation file
-    let navigationContent = fs.readFileSync(navigationFilePath, "utf-8");
-    
-    // Extract the array from the export default
-    const exportMatch = navigationContent.match(/export\s+default\s+(\[[\s\S]*\])\s*;?\s*$/);
-    if (!exportMatch) {
-      console.warn("Could not parse navigation file");
-      return false;
-    }
-    
-    let navigationArray;
-    try {
-      // Use eval to parse the JavaScript array (since it's a JS file, not JSON)
-      navigationArray = eval(exportMatch[1]);
-    } catch (parseError) {
-      console.error("Error parsing navigation array:", parseError);
-      return false;
-    }
-    
-    // Normalize paths for comparison (ensure leading slash, lowercase)
-    const normalizedMenuPath = menuPath.startsWith("/") ? menuPath.toLowerCase() : "/" + menuPath.toLowerCase();
-    const normalizedGeneratedPath = generatedPagePath.startsWith("/") ? generatedPagePath.toLowerCase() : "/" + generatedPagePath.toLowerCase();
-    
-    // Check if menu path already matches the generated page path (no need to add child)
-    // This happens when the page's menu is already set to the full path
-    if (normalizedMenuPath === normalizedGeneratedPath) {
-      console.log(`Menu path already matches generated path: ${menuPath}. No navigation update needed.`);
-      return true; // Return true as no update is needed
-    }
-    
-    // Recursive function to find existing menu item by path
-    function findMenuByPath(items, targetPath) {
-      for (let item of items) {
-        const itemPath = (item.path || "").toLowerCase();
-        if (itemPath === targetPath) {
-          return item;
-        }
-        if (item.child && item.child.length > 0) {
-          const found = findMenuByPath(item.child, targetPath);
-          if (found) return found;
+// Tables that live in schema2 (prisma2 client) - use prisma2 in generated API so regeneration keeps correct DB
+const SCHEMA2_TABLES = new Set([
+  "adm_message_log",
+  "adm_message_master",
+  "lookup_details_adm",
+  "lookup_master_adm",
+  "role",
+  "user",
+  "userrole",
+  "wf_process_action",
+  "wf_process_rule",
+  "wf_task",
+  "wf_task_action_log",
+  "wf_workflow_details",
+  "wf_workflow_master",
+]);
+
+// Primary key fields that are BigInt - must serialize as Number() in GET response so JSON doesn't throw
+const BIGINT_PK_FIELDS = new Set(["ml_message_log_id"]);
+
+/** Parse Prisma schema and return valid scalar field names and DateTime fields for a model */
+function getPrismaModelFields(modelName) {
+  const prismaDir = path.join(process.cwd(), "prisma");
+  const validFields = new Set();
+  const dateTimeFields = new Set();
+  for (const schemaFile of ["schema.prisma", "schema2.prisma"]) {
+    const schemaPath = path.join(prismaDir, schemaFile);
+    if (!fs.existsSync(schemaPath)) continue;
+    const content = fs.readFileSync(schemaPath, "utf8");
+    const modelRegex = new RegExp(`model\\s+${modelName}\\s*\\{([^}]+)\\}`, "s");
+    const match = content.match(modelRegex);
+    if (match) {
+      const modelBody = match[1];
+      const fieldRegex = /^\s*(\w+)\s+(\w+)(\?)?/gm;
+      let fieldMatch;
+      const skipTypes = ["DateTime", "Json", "Bytes", "Decimal", "BigInt", "Unsupported"];
+      const scalarTypes = ["String", "Int", "Float", "Boolean", ...skipTypes];
+      while ((fieldMatch = fieldRegex.exec(modelBody)) !== null) {
+        const fieldName = fieldMatch[1];
+        const fieldType = fieldMatch[2];
+        const isRelation = fieldType[0] === fieldType[0].toUpperCase() && !scalarTypes.includes(fieldType);
+        if (!isRelation) {
+          validFields.add(fieldName);
+          if (fieldType === "DateTime") dateTimeFields.add(fieldName);
         }
       }
-      return null;
+      break;
     }
-    
-    // Check if a menu item already exists at the generated path
-    const existingMenuItem = findMenuByPath(navigationArray, normalizedGeneratedPath);
-    if (existingMenuItem) {
-      // Menu item already exists at the generated path, just update its title
-      existingMenuItem.title = pageTitle;
-      const updatedContent = `export default ${JSON.stringify(navigationArray, null, 2)};`;
-      fs.writeFileSync(navigationFilePath, updatedContent, "utf-8");
-      console.log(`Updated existing menu item title: ${pageTitle} at ${generatedPagePath}`);
-      return true;
-    }
-    
-    // Recursive function to find and update the parent menu item
-    function findAndUpdateMenu(items, targetPath, newChild) {
-      for (let item of items) {
-        const itemPath = (item.path || "").toLowerCase();
-        
-        // Check if this item matches the target menu path
-        if (itemPath === targetPath) {
-          // Ensure child array exists
-          if (!item.child) {
-            item.child = [];
-          }
-          
-          // Check if the child already exists (update instead of duplicate)
-          const existingChildIndex = item.child.findIndex(
-            (child) => (child.path || "").toLowerCase() === newChild.path.toLowerCase()
-          );
-          
-          if (existingChildIndex >= 0) {
-            // Update existing child
-            item.child[existingChildIndex] = {
-              ...item.child[existingChildIndex],
-              title: newChild.title,
-              path: newChild.path,
-            };
-            console.log(`Updated existing navigation child: ${newChild.title} at ${newChild.path}`);
-          } else {
-            // Add new child
-            item.child.push(newChild);
-            console.log(`Added new navigation child: ${newChild.title} at ${newChild.path}`);
-          }
-          return true;
-        }
-        
-        // Recursively search in children
-        if (item.child && item.child.length > 0) {
-          if (findAndUpdateMenu(item.child, targetPath, newChild)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-    
-    // Create the new child menu item
-    const newChildItem = {
-      title: pageTitle,
-      path: generatedPagePath,
-      icon: "",
-      child: [],
-      meta: {}
-    };
-    
-    // Find and update the menu
-    const updated = findAndUpdateMenu(navigationArray, normalizedMenuPath, newChildItem);
-    
-    if (updated) {
-      // Write the updated navigation back to file
-      const updatedContent = `export default ${JSON.stringify(navigationArray, null, 2)};`;
-      fs.writeFileSync(navigationFilePath, updatedContent, "utf-8");
-      console.log(`Navigation menu updated successfully for ${pageTitle}`);
-      return true;
-    } else {
-      console.warn(`Parent menu not found in navigation: ${menuPath}`);
-      return false;
-    }
-  } catch (error) {
-    console.error("Error updating navigation menu:", error);
-    return false;
   }
+  return { validFields, dateTimeFields };
+}
+
+/** Build schema mappings: fields in query/form but not in Prisma -> map to valid field or exclude */
+function buildSchemaMappings(modelName, candidateFields) {
+  const { validFields } = getPrismaModelFields(modelName);
+  const mappings = {};
+  const excludeOnly = new Set();
+  for (const field of candidateFields) {
+    if (validFields.has(field)) continue;
+    const lower = field.toLowerCase();
+    if (lower.includes("entrydate") && validFields.has("createddate")) {
+      mappings[field] = "createddate";
+    } else {
+      excludeOnly.add(field);
+    }
+  }
+  return { mappings, excludeOnly };
 }
 
 export default defineEventHandler(async (event) => {
@@ -168,10 +100,15 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Validate datatable components have Query Mapping
+    // Validate datatable components have Query Mapping (skip those using existing ORM model)
     const datatableComponents = pageComponents.filter((c) => c.type === "datatable");
     const invalidDatatables = datatableComponents.filter(
-      (c) => !c.queryMapping || c.queryMapping.trim() === ""
+      (c) => {
+        const useExisting = parseInt(c.useExistingOrmModel) === 1 || c.useExistingOrmModel === true;
+        // Skip validation if using existing ORM model (no Query Mapping needed)
+        if (useExisting) return false;
+        return !c.queryMapping || c.queryMapping.trim() === "";
+      }
     );
 
     if (invalidDatatables.length > 0) {
@@ -285,6 +222,40 @@ export default defineEventHandler(async (event) => {
           ? JSON.parse(component.componentData)
           : {};
 
+        // Check if this component uses an existing ORM model (skip API generation)
+        const useExistingOrmModel = parseInt(component.useExistingOrmModel) === 1 || component.useExistingOrmModel === true;
+
+        if (useExistingOrmModel) {
+          // Skip API generation — use existing CRUD APIs as-is
+          // Just preserve the component data with its current dt_ajax
+          // Default datatable features to true (unless explicitly false)
+          console.log(`Skipping API generation for "${component.title || component.name}" — using existing ORM model`);
+          const defaultDtFeature = (val) => (val === false || val === "false") ? false : true;
+          const enrichedComponentData = {
+            ...componentData,
+            dt_column_movable: defaultDtFeature(componentData.dt_column_movable),
+            dt_column_hide_show: defaultDtFeature(componentData.dt_column_hide_show),
+            dt_column_grouping_list: defaultDtFeature(componentData.dt_column_grouping_list),
+            dt_download_pdf: defaultDtFeature(componentData.dt_download_pdf),
+            dt_download_csv: defaultDtFeature(componentData.dt_download_csv),
+            dt_download_excel: defaultDtFeature(componentData.dt_download_excel),
+          };
+          updatedComponents.push({
+            ...component,
+            componentData: JSON.stringify(enrichedComponentData),
+            queryMapping: component.queryMapping ?? "",
+          });
+          
+          generatedApis.push({
+            componentId: component.id,
+            componentName: component.name,
+            apiPath: componentData.dt_ajax || "(existing)",
+            operations: { get: true, post: false, put: false, delete: false },
+            skipped: true,
+          });
+          continue;
+        }
+
         // Generate folder path from menu structure (for file system and URL)
         // Use folder path for both to ensure consistency
         const apiFolderPath = getApiFolderPathFromMenu(page.menu, page.pageTitle);
@@ -375,15 +346,25 @@ export default defineEventHandler(async (event) => {
         }
 
         // Update component dt_ajax (use folder path which matches the actual API location)
+        // Default datatable features to true for all datatables (unless explicitly false)
         const apiUrlPathWithSlash = apiUrlPath.startsWith('/') ? apiUrlPath : `/${apiUrlPath}`;
+        const defaultDtFeature = (val) => (val === false || val === "false") ? false : true;
         const updatedComponentData = {
           ...componentData,
           dt_ajax: `/api${apiUrlPathWithSlash}`,
+          dt_column_movable: defaultDtFeature(componentData.dt_column_movable),
+          dt_column_hide_show: defaultDtFeature(componentData.dt_column_hide_show),
+          dt_column_grouping_list: defaultDtFeature(componentData.dt_column_grouping_list),
+          dt_download_pdf: defaultDtFeature(componentData.dt_download_pdf),
+          dt_download_csv: defaultDtFeature(componentData.dt_download_csv),
+          dt_download_excel: defaultDtFeature(componentData.dt_download_excel),
         };
 
+        // Preserve queryMapping so regeneration always uses the latest from editor
         updatedComponents.push({
           ...component,
           componentData: JSON.stringify(updatedComponentData),
+          queryMapping: component.queryMapping ?? "",
         });
 
         generatedApis.push({
@@ -403,11 +384,15 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Update components with new dt_ajax values
+    // Update components with new dt_ajax and datatable feature defaults
     for (const updatedComponent of updatedComponents) {
       const index = components.findIndex((c) => c.id === updatedComponent.id);
       if (index !== -1) {
         components[index] = updatedComponent;
+      }
+      const pageIndex = pageComponents.findIndex((c) => c.id === updatedComponent.id);
+      if (pageIndex !== -1) {
+        pageComponents[pageIndex] = updatedComponent;
       }
     }
     writeComponents(components);
@@ -441,45 +426,84 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    // Validate menu path before generating
+    // The page will be placed exactly at the menu path selected in the page creator
+    // Do NOT create or modify navigation menu items
+    const generatedPagePath = page.menu;
+    
+    if (!generatedPagePath || !generatedPagePath.startsWith("/")) {
+      return {
+        statusCode: 400,
+        message: "Invalid menu path. Menu must start with /",
+      };
+    }
+
+    // Check if the menu path in navigation already has a different page or has submenus
+    const navigationFilePath = path.join(process.cwd(), "navigation", "index.js");
+    if (fs.existsSync(navigationFilePath)) {
+      try {
+        const navigationContent = fs.readFileSync(navigationFilePath, "utf-8");
+        const exportMatch = navigationContent.match(/export\s+default\s+(\[[\s\S]*\])\s*;?\s*$/);
+        if (exportMatch) {
+          const navigationArray = eval(exportMatch[1]);
+          const normalizedPath = generatedPagePath.toLowerCase();
+          
+          // Find the menu item at this path
+          function findMenuByPath(items, targetPath) {
+            for (let item of items) {
+              const itemPath = (item.path || "").toLowerCase();
+              if (itemPath === targetPath) return item;
+              if (item.child && item.child.length > 0) {
+                const found = findMenuByPath(item.child, targetPath);
+                if (found) return found;
+              }
+            }
+            return null;
+          }
+          
+          const menuItem = findMenuByPath(navigationArray, normalizedPath);
+          if (menuItem && menuItem.child && menuItem.child.length > 0) {
+            // Menu has submenus - don't proceed
+            return {
+              statusCode: 400,
+              message: `Cannot generate page at "${generatedPagePath}". This menu item has ${menuItem.child.length} submenu(s). Please select a menu path that has no submenus.`,
+            };
+          }
+          
+          // Check if a different page file already exists at this path
+          const pagesBaseDir = path.join(process.cwd(), "pages");
+          const menuPath = generatedPagePath.substring(1); // Remove leading /
+          const existingPagePath = path.join(pagesBaseDir, ...menuPath.split("/"), "index.vue");
+          if (fs.existsSync(existingPagePath)) {
+            // Read the existing file to check if it belongs to a different page
+            const existingContent = fs.readFileSync(existingPagePath, "utf-8");
+            // Check if the existing page was generated for a different pageId
+            // Look for a pageId marker or the page title in definePageMeta
+            const titleMatch = existingContent.match(/title:\s*["']([^"']+)["']/);
+            if (titleMatch && titleMatch[1] !== page.pageTitle) {
+              return {
+                statusCode: 400,
+                message: `Cannot generate page at "${generatedPagePath}". A different page ("${titleMatch[1]}") already exists at this path. Please select a different menu path.`,
+              };
+            }
+          }
+        }
+      } catch (navError) {
+        console.warn("Could not validate navigation:", navError.message);
+        // Continue with generation even if navigation validation fails
+      }
+    }
+
     // Generate Vue page file
     await generateVuePage(page, pageComponents, pageComponentItems);
 
-    // Update navigation menu with the generated page
-    const sanitizedPageTitle = page.pageTitle.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    
-    // Check if the menu already ends with the sanitized page title
-    // If so, don't append it again (prevents duplicates like /path/pagename/pagename)
-    const normalizedMenu = page.menu.toLowerCase().replace(/\/+$/, ""); // Remove trailing slashes
-    const menuAlreadyIncludesPage = normalizedMenu.endsWith(sanitizedPageTitle) || 
-                                     normalizedMenu.endsWith(`/${sanitizedPageTitle}`);
-    
-    let generatedPagePath;
-    let parentMenuPath;
-    
-    if (menuAlreadyIncludesPage) {
-      // Menu already includes the page name, use it as-is
-      generatedPagePath = page.menu;
-      // Parent menu is the path without the page name
-      const lastSlashIndex = page.menu.lastIndexOf('/');
-      parentMenuPath = lastSlashIndex > 0 ? page.menu.substring(0, lastSlashIndex) : page.menu;
-    } else {
-      // Menu is the parent path, append page title
-      generatedPagePath = `${page.menu}/${sanitizedPageTitle}`;
-      parentMenuPath = page.menu;
-    }
-    
-    const navigationUpdated = updateNavigationMenu(parentMenuPath, page.pageTitle, generatedPagePath);
-
     return {
       statusCode: 200,
-      message: navigationUpdated 
-        ? "Page generated successfully and navigation menu updated" 
-        : "Page generated successfully (navigation menu not updated - parent menu not found)",
+      message: "Page generated successfully",
       data: {
         pageId,
         generatedApis,
         componentsUpdated: updatedComponents.length,
-        navigationUpdated,
         generatedPath: generatedPagePath,
       },
     };
@@ -871,10 +895,16 @@ function parseQueryMapping(queryMapping) {
   const whereClause = whereMatch ? whereMatch[1] : null;
 
   // Extract primary key field - look for _id pattern in table name or fields
-  // Special case for lookup_details table - primary key is lde_id (check FIRST)
+  // Special cases for lookup tables (check FIRST)
   let primaryKey = null;
   let primaryKeyAlias = null; // The alias used in SELECT (e.g., ID)
-  if (table && table.toLowerCase() === 'lookup_details') {
+  if (table && table.toLowerCase() === 'lookup_details_adm') {
+    primaryKey = 'lde_id';
+    primaryKeyAlias = 'lde_id';
+  } else if (table && table.toLowerCase() === 'adm_message_log') {
+    primaryKey = 'ml_message_log_id';
+    primaryKeyAlias = 'ml_message_log_id';
+  } else if (table && table.toLowerCase() === 'lookup_details') {
     primaryKey = 'lde_id';
     primaryKeyAlias = 'lde_id';
   } else {
@@ -899,14 +929,24 @@ function parseQueryMapping(queryMapping) {
   // Parse WHERE clause to extract conditions
   let whereConditions = {};
   if (whereClause) {
+    // Clean trailing semicolons from WHERE clause
+    const cleanedWhere = whereClause.replace(/;\s*$/, '').trim();
+    
     // Simple WHERE clause parsing - handle common patterns
-    // Pattern: field='value' or field="value"
-    const equalityMatch = whereClause.match(/(\w+)\s*=\s*['"]([^'"]+)['"]/i);
-    if (equalityMatch) {
-      whereConditions[equalityMatch[1]] = equalityMatch[2];
+    // Pattern: field='value' or field="value" (quoted string)
+    const equalityQuotedMatch = cleanedWhere.match(/(\w+)\s*=\s*['"]([^'"]+)['"]/i);
+    if (equalityQuotedMatch) {
+      whereConditions[equalityQuotedMatch[1]] = equalityQuotedMatch[2];
+    }
+    // Pattern: field = number (unquoted numeric value)
+    if (!equalityQuotedMatch) {
+      const equalityNumericMatch = cleanedWhere.match(/(\w+)\s*=\s*(\d+(?:\.\d+)?)/i);
+      if (equalityNumericMatch) {
+        whereConditions[equalityNumericMatch[1]] = equalityNumericMatch[2];
+      }
     }
     // Pattern: field IN ('value1', 'value2')
-    const inMatch = whereClause.match(/(\w+)\s+IN\s*\(([^)]+)\)/i);
+    const inMatch = cleanedWhere.match(/(\w+)\s+IN\s*\(([^)]+)\)/i);
     if (inMatch) {
       const values = inMatch[2].split(',').map(v => v.trim().replace(/['"]/g, ''));
       whereConditions[inMatch[1]] = { in: values };
@@ -924,6 +964,7 @@ function parseQueryMapping(queryMapping) {
     subqueryRelations, // Subquery relations for Prisma includes
     ifExpressions, // IF() expression conversions
     originalQuery: queryMapping,
+    usePrisma2: table ? SCHEMA2_TABLES.has(table) : false, // Use prisma2 for schema2-only tables
   };
 }
 
@@ -950,17 +991,16 @@ async function generateGetEndpoint(apiPath, tableInfo, componentData, topFilterI
 
   // Build search conditions from original field names (not aliases)
   // Note: mode: 'insensitive' is PostgreSQL-only; removed for cross-database compatibility
+  // For adm_message_log, mm_mesg_type is on adm_message_master - exclude from main-table search
   const searchFields = Object.values(tableInfo.fieldMapping || {})
     .filter((f) => {
       if (!f || f.trim() === "") return false;
-      // Skip invalid field names (subqueries, SQL keywords, etc.)
       if (f.includes('(') || f.includes(')')) return false;
       if (f.toUpperCase().includes('SELECT')) return false;
-      // Skip relation fields (they start with __RELATION__)
       if (f.startsWith('__RELATION__')) return false;
-      // Skip IF expression fields (they start with __IF__)
       if (f.startsWith('__IF__')) return false;
       if (!/^[\w]+$/.test(f)) return false;
+      if (tableInfo.table === 'adm_message_log' && f === 'mm_mesg_type') return false;
       return true;
     })
     .slice(0, 5); // Limit to first 5 fields for performance
@@ -1016,6 +1056,12 @@ async function generateGetEndpoint(apiPath, tableInfo, componentData, topFilterI
     });
     includeCode = `include: {
         ${includeEntries.join(",\n        ")}
+      },`;
+  }
+  // adm_message_log JOIN: Type comes from adm_message_master
+  if (tableInfo.table === 'adm_message_log') {
+    includeCode = `include: {
+        adm_message_master: { select: { mm_mesg_type: true } },
       },`;
   }
   
@@ -1196,9 +1242,16 @@ async function generateGetEndpoint(apiPath, tableInfo, componentData, topFilterI
   }
   
   // Combine regular field mapping with relation field mapping, IF expression mapping, and popup modal mappings
-  const combinedFieldMappingCode = [fieldMappingCode, relationFieldMappingCode, ifExpressionMappingCode, popupModalFieldMappingCode].filter(c => c).join("\n      ");
+  // adm_message_log: Type comes from relation adm_message_master
+  const admMessageLogTypeMapping = tableInfo.table === 'adm_message_log'
+    ? `mapped.Type = item.adm_message_master?.mm_mesg_type ?? '';\n      mapped.type = mapped.Type;`
+    : '';
+  const combinedFieldMappingCode = [fieldMappingCode, relationFieldMappingCode, ifExpressionMappingCode, popupModalFieldMappingCode, admMessageLogTypeMapping].filter(c => c).join("\n      ");
 
-  const code = `import prisma from "~/server/utils/prisma";
+  const prismaImport = tableInfo.usePrisma2
+    ? 'import prisma from "~/server/utils/prisma2";'
+    : 'import prisma from "~/server/utils/prisma";';
+  const code = `${prismaImport}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -1238,6 +1291,13 @@ export default defineEventHandler(async (event) => {
         const isValidIdentifier = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(alias);
         const formFieldName = alias.replace(/[^a-zA-Z0-9]/g, "_");
         const aliasQueryAccess = isValidIdentifier ? `query.${alias}` : `query[${JSON.stringify(alias)}]`;
+        // adm_message_log: mm_mesg_type is on adm_message_master - filter via relation
+        if (tableInfo.table === 'adm_message_log' && originalField === 'mm_mesg_type') {
+          return `if (${aliasQueryAccess} || query.${formFieldName} || query.${originalField}) {
+      const filterValue = ${aliasQueryAccess} || query.${formFieldName} || query.${originalField};
+      where.adm_message_master = { mm_mesg_type: { contains: filterValue } };
+    }`;
+        }
         return `if (${aliasQueryAccess} || query.${formFieldName} || query.${originalField}) {
       const filterValue = ${aliasQueryAccess} || query.${formFieldName} || query.${originalField};
       where.${originalField} = { contains: filterValue };
@@ -1300,12 +1360,14 @@ export default defineEventHandler(async (event) => {
     const mappedData = data.map((item) => {
       const mapped = { ...item };
       ${combinedFieldMappingCode || "// No field mapping needed"}
-      // Ensure primary key is available (even if not in SELECT)
-      ${tableInfo.primaryKey && !tableInfo.fields.includes(tableInfo.primaryKey) ? `if (!mapped.${tableInfo.primaryKey} && item.${tableInfo.primaryKey}) {
+      ${tableInfo.primaryKey && BIGINT_PK_FIELDS.has(tableInfo.primaryKey) ? `// BigInt PK -> Number so JSON response does not throw
+      mapped.${tableInfo.primaryKey} = Number(item.${tableInfo.primaryKey});
+      mapped.id = Number(item.${tableInfo.primaryKey});` : tableInfo.primaryKey ? `// Ensure primary key is available (even if not in SELECT)
+      ${!tableInfo.fields.includes(tableInfo.primaryKey) ? `if (!mapped.${tableInfo.primaryKey} && item.${tableInfo.primaryKey}) {
         mapped.${tableInfo.primaryKey} = item.${tableInfo.primaryKey};
       }` : ""}
-      // Add id field for CRUD operations (use primary key value)
-      mapped.id = item.${tableInfo.primaryKey || 'id'};
+      mapped.id = item.${tableInfo.primaryKey};` : `mapped.id = item.${tableInfo.primaryKey || 'id'};`}
+      ${tableInfo.table === 'adm_message_log' ? "delete mapped.adm_message_master;" : ""}
       return mapped;
     });
 
@@ -1508,6 +1570,14 @@ async function generatePostEndpoint(apiPath, tableInfo, componentData, popupModa
     });
   }
 
+  // Schema field mappings for POST (fields in query/form but not in Prisma schema)
+  const allCandidateFieldsPost = new Set([
+    ...Object.values(effectiveFieldMapping || {}),
+    ...Object.values(tableInfo.fieldMapping || {}).filter((c) => c && !c.startsWith("__")),
+  ]);
+  const { mappings: schemaMappingsPost, excludeOnly: schemaExcludeOnlyPost } = buildSchemaMappings(tableInfo.table, allCandidateFieldsPost);
+  const resolveCreateField = (originalField) => schemaMappingsPost[originalField] || originalField;
+
   // Build field mapping code (alias -> original field)
   const fieldMappingReverse = Object.entries(effectiveFieldMapping || {})
     .filter(([alias, originalField]) => {
@@ -1526,6 +1596,7 @@ async function generatePostEndpoint(apiPath, tableInfo, componentData, popupModa
       return true;
     })
     .map(([alias, originalField]) => {
+      const targetField = resolveCreateField(originalField);
       const isValidIdentifier = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(alias);
       const aliasAccess = isValidIdentifier ? `body.${alias}` : `body[${JSON.stringify(alias)}]`;
       // Form field name (non-alphanumeric -> underscore, case preserved) - e.g. "Type Basis" -> "Type_Basis"
@@ -1537,17 +1608,17 @@ async function generatePostEndpoint(apiPath, tableInfo, componentData, popupModa
       
       let mappingCode = "";
       if (alias !== originalField) {
-        mappingCode = `if (${aliasAccess} !== undefined) createData.${originalField} = ${aliasAccess};`;
+        mappingCode = `if (${aliasAccess} !== undefined) createData.${targetField} = ${aliasAccess};`;
         // Map form field name (Type_Basis) so generated form v-model binding is persisted after regeneration
         if (formFieldNameValid && formFieldName !== alias) {
-          mappingCode += `\n    if (body.${formFieldName} !== undefined && createData.${originalField} === undefined) createData.${originalField} = body.${formFieldName};`;
+          mappingCode += `\n    if (body.${formFieldName} !== undefined && createData.${targetField} === undefined) createData.${targetField} = body.${formFieldName};`;
         }
         // Also map normalized (lowercase) form field name if different
         if (normalizedAlias !== formFieldName && normalizedAlias !== alias) {
-          mappingCode += `\n    if (${normalizedAccess} !== undefined && createData.${originalField} === undefined) createData.${originalField} = ${normalizedAccess};`;
+          mappingCode += `\n    if (${normalizedAccess} !== undefined && createData.${targetField} === undefined) createData.${targetField} = ${normalizedAccess};`;
         }
       } else {
-        mappingCode = `if (body.${originalField} !== undefined) createData.${originalField} = body.${originalField};`;
+        mappingCode = `if (body.${originalField} !== undefined) createData.${targetField} = body.${originalField};`;
       }
       return mappingCode;
     })
@@ -1558,6 +1629,27 @@ async function generatePostEndpoint(apiPath, tableInfo, componentData, popupModa
     ? tableInfo.primaryKey.split('_').slice(0, -1).join('_') + '_'
     : tableInfo.table.split('_').map(w => w.charAt(0)).join('') + '_';
   
+  // Schema field mappings: fields that appear in query/form but don't exist in Prisma schema -> map to actual field
+  const schemaExcludeFields = [...Object.keys(schemaMappingsPost), ...schemaExcludeOnlyPost];
+  const schemaMappingCode = Object.keys(schemaMappingsPost).length ? Object.keys(schemaMappingsPost).map(invalid => {
+    const valid = schemaMappingsPost[invalid];
+    return `if (body.${invalid} !== undefined && createData.${valid} === undefined) createData.${valid} = body.${invalid};`;
+  }).join('\n    ') : '';
+  const schemaExcludeCode = schemaExcludeFields.length ? schemaExcludeFields.map(f => `key !== '${f}'`).join(' && ') : 'true';
+  const schemaDeleteCode = schemaExcludeFields.length ? schemaExcludeFields.map(f => `delete createData['${f.replace(/'/g, "\\'")}'];`).join('\n    ') : '';
+
+  const { dateTimeFields: dateTimeFieldsPost } = getPrismaModelFields(tableInfo.table);
+  const dateTimeConversionPost = dateTimeFieldsPost.size > 0
+    ? `// Convert date-only strings (YYYY-MM-DD) to Date for Prisma DateTime fields
+    const dateTimeFieldsPost = [${[...dateTimeFieldsPost].map((f) => `'${f}'`).join(", ")}];
+    dateTimeFieldsPost.forEach((key) => {
+      if (createData[key] && typeof createData[key] === 'string' && !createData[key].includes('T')) {
+        createData[key] = new Date(createData[key]);
+      }
+    });
+`
+    : "";
+
   // Add WHERE conditions for required fields (like lma_code_name)
   const whereConditionsForCreate = Object.entries(tableInfo.whereConditions || {})
     .map(([field, value]) => {
@@ -1600,7 +1692,10 @@ async function generatePostEndpoint(apiPath, tableInfo, componentData, popupModa
       }).join('\n    ')
     : '// No required fields validation needed';
 
-  const code = `import prisma from "~/server/utils/prisma";
+  const prismaImportPost = tableInfo.usePrisma2
+    ? 'import prisma from "~/server/utils/prisma2";'
+    : 'import prisma from "~/server/utils/prisma";';
+  const code = `${prismaImportPost}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -1609,14 +1704,15 @@ export default defineEventHandler(async (event) => {
     // Map aliased fields back to original field names
     const createData = {};
     ${fieldMappingReverse || "// No field mapping needed"}
-    // Copy any fields that match original field names
+    ${schemaMappingCode ? schemaMappingCode + '\n    ' : ''}// Copy any fields that match original field names (exclude schema-mismatched fields)
     Object.keys(body).forEach(key => {
-      if (key.startsWith('${primaryKeyPrefix}') && key !== '${tableInfo.primaryKey || ''}') {
+      if (key.startsWith('${primaryKeyPrefix}') && key !== '${tableInfo.primaryKey || ''}' && ${schemaExcludeCode}) {
         if (!createData.hasOwnProperty(key)) {
           createData[key] = body[key];
         }
       }
     });
+    ${schemaDeleteCode ? schemaDeleteCode + '\n    ' : ''}
     ${whereConditionsForCreate ? `// Add WHERE conditions from queryMapping\n    ${whereConditionsForCreate}` : ""}
 
     ${primaryKeyAutoGenCode}
@@ -1630,6 +1726,7 @@ export default defineEventHandler(async (event) => {
         createData[key] = String(createData[key]);
       }
     });
+    ${dateTimeConversionPost}
 
     // Create record
     const data = await prisma.${tableInfo.table}.create({
@@ -1846,6 +1943,14 @@ async function generatePutEndpoint(apiPath, tableInfo, componentData, popupModal
     });
   }
 
+  // Schema field mappings for PUT - apply to alias mapping (map invalid fields to valid)
+  const allCandidateFieldsPut = new Set([
+    ...Object.values(effectiveFieldMapping || {}),
+    ...Object.values(tableInfo.fieldMapping || {}).filter((c) => c && !c.startsWith("__")),
+  ]);
+  const { mappings: schemaMappingsPut, excludeOnly: schemaExcludeOnlyPut } = buildSchemaMappings(tableInfo.table, allCandidateFieldsPut);
+  const resolvePutField = (originalField) => schemaMappingsPut[originalField] || originalField;
+
   // Split field mapping into aliases and original fields
   // CRITICAL: Process aliases FIRST, then original fields LAST
   // This ensures user edits (in original fields) take priority over stale alias values
@@ -1868,18 +1973,19 @@ async function generatePutEndpoint(apiPath, tableInfo, componentData, popupModal
       return true;
     })
     .map(([alias, originalField]) => {
+      const targetField = resolvePutField(originalField);
       const isValidIdentifier = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(alias);
       const aliasAccess = isValidIdentifier ? `body.${alias}` : `body[${JSON.stringify(alias)}]`;
       // Form field name (e.g. "Type Basis" -> "Type_Basis") so generated form stays editable after regeneration
       const formFieldName = alias.replace(/[^a-zA-Z0-9]/g, "_");
       const formFieldNameValid = formFieldName && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(formFieldName);
-      let lines = `if (${aliasAccess} !== undefined) updateData.${originalField} = ${aliasAccess};`;
+      let lines = `if (${aliasAccess} !== undefined) updateData.${targetField} = ${aliasAccess};`;
       if (formFieldNameValid && formFieldName !== alias) {
-        lines += `\n    if (body.${formFieldName} !== undefined) updateData.${originalField} = body.${formFieldName};`;
+        lines += `\n    if (body.${formFieldName} !== undefined) updateData.${targetField} = body.${formFieldName};`;
       }
       const normalizedAlias = alias.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
       if (normalizedAlias !== formFieldName && normalizedAlias !== alias) {
-        lines += `\n    if (body.${normalizedAlias} !== undefined) updateData.${originalField} = body.${normalizedAlias};`;
+        lines += `\n    if (body.${normalizedAlias} !== undefined) updateData.${targetField} = body.${normalizedAlias};`;
       }
       return lines;
     })
@@ -1898,18 +2004,40 @@ async function generatePutEndpoint(apiPath, tableInfo, componentData, popupModal
       if (!/^[\w]+$/.test(originalField)) return false;
       return true;
     });
-  const originalFieldMapping = uniqueOriginalFields
-    .map((originalField) => {
-      return `if (body.${originalField} !== undefined) updateData.${originalField} = body.${originalField};`;
-    })
-    .join("\n    ");
-  
   // Get prefix from primary key (e.g., lde_id -> lde_, bm_id -> bm_)
   const primaryKeyPrefix = tableInfo.primaryKey 
     ? tableInfo.primaryKey.split('_').slice(0, -1).join('_') + '_'
     : tableInfo.table.split('_').map(w => w.charAt(0)).join('') + '_';
 
-  const code = `import prisma from "~/server/utils/prisma";
+  const schemaExcludeFieldsPut = [...Object.keys(schemaMappingsPut), ...schemaExcludeOnlyPut];
+  const originalFieldMappingFiltered = uniqueOriginalFields
+    .filter((f) => !schemaExcludeFieldsPut.includes(f))
+    .map((originalField) => `if (body.${originalField} !== undefined) updateData.${originalField} = body.${originalField};`)
+    .join("\n    ");
+  const schemaMappingCodePut = Object.keys(schemaMappingsPut).map(invalid => {
+    const valid = schemaMappingsPut[invalid];
+    return `if (body.${invalid} !== undefined) updateData.${valid} = body.${invalid};`;
+  }).join("\n    ");
+  const schemaExcludeCodePut = schemaExcludeFieldsPut.length ? schemaExcludeFieldsPut.map(f => `key !== '${f}'`).join(' && ') : 'true';
+  const schemaDeleteCodePut = schemaExcludeFieldsPut.length ? schemaExcludeFieldsPut.map(f => `delete updateData['${f.replace(/'/g, "\\'")}'];`).join('\n    ') : '';
+
+  const { dateTimeFields: dateTimeFieldsPut } = getPrismaModelFields(tableInfo.table);
+  const dateTimeConversionPut = dateTimeFieldsPut.size > 0
+    ? `// Convert date-only strings (YYYY-MM-DD) to Date for Prisma DateTime fields
+    const dateTimeFieldsPut = [${[...dateTimeFieldsPut].map((f) => `'${f}'`).join(", ")}];
+    dateTimeFieldsPut.forEach((key) => {
+      if (updateData[key] && typeof updateData[key] === 'string' && !updateData[key].includes('T')) {
+        updateData[key] = new Date(updateData[key]);
+      }
+    });
+`
+    : "";
+
+  const idExprPut = tableInfo.primaryKey && BIGINT_PK_FIELDS.has(tableInfo.primaryKey) ? 'BigInt(id)' : 'parseInt(id)';
+  const prismaImportPut = tableInfo.usePrisma2
+    ? 'import prisma from "~/server/utils/prisma2";'
+    : 'import prisma from "~/server/utils/prisma";';
+  const code = `${prismaImportPut}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -1925,7 +2053,7 @@ export default defineEventHandler(async (event) => {
 
     // Check if record exists before updating
     const existingRecord = await prisma.${tableInfo.table}.findUnique({
-      where: { ${tableInfo.primaryKey}: parseInt(id) },
+      where: { ${tableInfo.primaryKey}: ${idExprPut} },
     });
 
     if (!existingRecord) {
@@ -1941,15 +2069,16 @@ export default defineEventHandler(async (event) => {
     const updateData = {};
     ${aliasMapping || "// No alias mapping needed"}
     // Process original field names LAST so they take priority over stale alias values
-    ${originalFieldMapping || "// No original field mapping needed"}
-    // Copy any other fields that match original field names (excluding id fields)
+    ${originalFieldMappingFiltered || "// No original field mapping needed"}
+    ${schemaMappingCodePut ? schemaMappingCodePut + '\n    ' : ''}// Copy any other fields that match original field names (excluding id and schema-mismatched fields)
     Object.keys(body).forEach(key => {
-      if (key.startsWith('${primaryKeyPrefix}') && key !== '${tableInfo.primaryKey}' && body[key] !== undefined) {
+      if (key.startsWith('${primaryKeyPrefix}') && key !== '${tableInfo.primaryKey}' && ${schemaExcludeCodePut} && body[key] !== undefined) {
         if (!updateData.hasOwnProperty(key)) {
           updateData[key] = body[key];
         }
       }
     });
+    ${schemaDeleteCodePut ? schemaDeleteCodePut + '\n    ' : ''}
 
     // Check if there's any data to update
     if (Object.keys(updateData).length === 0) {
@@ -1965,10 +2094,11 @@ export default defineEventHandler(async (event) => {
         updateData[key] = String(updateData[key]);
       }
     });
+    ${dateTimeConversionPut}
 
     // Update record
     const data = await prisma.${tableInfo.table}.update({
-      where: { ${tableInfo.primaryKey}: parseInt(id) },
+      where: { ${tableInfo.primaryKey}: ${idExprPut} },
       data: updateData,
     });
 
@@ -2038,7 +2168,11 @@ async function generateDeleteEndpoint(apiPath, tableInfo, componentData) {
   // Build the full file path
   const endpointPath = path.join(endpointDir, "[id].delete.js");
 
-  const code = `import prisma from "~/server/utils/prisma";
+  const idExprDelete = tableInfo.primaryKey && BIGINT_PK_FIELDS.has(tableInfo.primaryKey) ? 'BigInt(id)' : 'parseInt(id)';
+  const prismaImportDelete = tableInfo.usePrisma2
+    ? 'import prisma from "~/server/utils/prisma2";'
+    : 'import prisma from "~/server/utils/prisma";';
+  const code = `${prismaImportDelete}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -2053,7 +2187,7 @@ export default defineEventHandler(async (event) => {
 
     // Check if record exists before deleting
     const existingRecord = await prisma.${tableInfo.table}.findUnique({
-      where: { ${tableInfo.primaryKey}: parseInt(id) },
+      where: { ${tableInfo.primaryKey}: ${idExprDelete} },
     });
 
     if (!existingRecord) {
@@ -2065,7 +2199,7 @@ export default defineEventHandler(async (event) => {
 
     // Delete record
     await prisma.${tableInfo.table}.delete({
-      where: { ${tableInfo.primaryKey}: parseInt(id) },
+      where: { ${tableInfo.primaryKey}: ${idExprDelete} },
     });
 
     return {
@@ -2149,18 +2283,61 @@ async function generateLookupEndpoint(apiPath, tableInfo, lookupQuery) {
   // Build the full file path
   const endpointPath = path.join(endpointDir, "index.get.js");
 
+  // Detect static-value queries (FROM dual, or UNION ALL of literals)
+  // These are SQL queries that don't read from real tables — they return hardcoded values
+  // Examples: SELECT '3' flc_id, '3' flc_name FROM dual
+  //           SELECT 'ACTIVE' flc_id, 'ACTIVE' flc_name FROM dual UNION SELECT 'INACTIVE' flc_id, 'INACTIVE' flc_name FROM dual
+  //           select 1 flc_id, 'ACTIVE' flc_name union all select 0 flc_id, 'INACTIVE' flc_name
+  const isDualQuery = /\bFROM\s+dual\b/i.test(lookupQuery);
+  const isUnionLiteralQuery = /\bUNION\s+(ALL\s+)?SELECT\b/i.test(lookupQuery) && !/\bFROM\s+(?!dual\b)\w+/i.test(lookupQuery);
+  const hasNoFromClause = /^SELECT\b/i.test(lookupQuery.trim()) && !/\bFROM\b/i.test(lookupQuery);
+  
+  if (isDualQuery || isUnionLiteralQuery || hasNoFromClause) {
+    // Parse static values from the SQL query
+    const staticData = parseStaticLookupQuery(lookupQuery);
+    const staticDataJSON = JSON.stringify(staticData, null, 6);
+    
+    const code = `export default defineEventHandler(async (event) => {
+  try {
+    // Static lookup data (parsed from SQL with literal values)
+    // Original: ${lookupQuery.replace(/\n/g, ' ').replace(/\r/g, '').substring(0, 200)}
+    const mappedData = ${staticDataJSON};
+
+    return {
+      statusCode: 200,
+      message: "Lookup data fetched successfully",
+      data: mappedData,
+    };
+  } catch (error) {
+    console.error("Error fetching lookup data:", error);
+    return {
+      statusCode: 500,
+      message: "Failed to fetch lookup data",
+      error: "development" === 'development' ? error.message : "An error occurred while fetching lookup data",
+    };
+  }
+});
+`;
+    fs.writeFileSync(endpointPath, code, "utf8");
+    return;
+  }
+
   // Extract variables from lookup query (e.g., ${Fund}, ${PTJ})
   const variables = extractLookupVariables(lookupQuery);
   const hasVariables = variables.length > 0;
 
   // Parse the lookup query to extract fields and aliases
-  const parsedFields = parseLookupQueryFields(lookupQuery);
+  // Complex SQL (CONCAT_WS, EXISTS, subqueries, etc.) must use raw SQL — Prisma cannot express these
+  const parsedFields = requiresRawSqlLookup(lookupQuery) ? null : parseLookupQueryFields(lookupQuery);
   
-  // If parsing fails, use raw SQL execution as fallback
+  // If parsing fails or query requires raw SQL, use raw SQL execution
   if (!parsedFields) {
     // Generate raw SQL endpoint - this handles complex queries with functions like CONCAT_WS()
     // Also handles variable substitution for cascading dropdowns
-    const code = `import prisma from "~/server/utils/prisma";
+    const prismaImportLookupRaw = tableInfo.usePrisma2
+      ? 'import prisma from "~/server/utils/prisma2";'
+      : 'import prisma from "~/server/utils/prisma";';
+    const code = `${prismaImportLookupRaw}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -2202,32 +2379,50 @@ ${variables.map(v => `    // Replace \${${v}} or {${v}} with query.${v} value
     const data = await prisma.$queryRawUnsafe(rawQuery);
     
     // Map to standard label/value format
-    // Convention: value = code (for filtering), label = description (for display)
+    // Convention: value = code/id (for filtering), label = description/text/name (for display)
+    // Recognize common alias patterns:
+    //   Value aliases: value, id, flc_id, code
+    //   Label aliases: label, text, flc_name, name, description, desc
+    const VALUE_ALIASES = ['value', 'id', 'flc_id', 'code'];
+    const LABEL_ALIASES = ['label', 'text', 'flc_name', 'name', 'description', 'desc'];
+    
     const mappedData = data.map((item) => {
       const keys = Object.keys(item);
-      const values = Object.values(item);
+      const keysLower = keys.map(k => k.toLowerCase());
       
-      // Check if SQL used 'label' and 'value' aliases
+      // 1. Check for explicit 'label' and 'value' aliases first
       if (item.value !== undefined && item.label !== undefined) {
-        // Detect if aliases are swapped: if 'label' is shorter/simpler than 'value', they're correct
-        // If 'label' contains separator like ' - ' or is longer, they're swapped
-        const labelStr = String(item.label || "");
-        const valueStr = String(item.value || "");
-        const labelLooksLikeDescription = labelStr.includes(' - ') || labelStr.includes(' : ') || labelStr.length > valueStr.length + 10;
-        
-        if (labelLooksLikeDescription) {
-          // Swapped: label is actually description, value is actually code
-          return { label: item.label || "", value: item.value || "" };
-        } else {
-          // User has label=code, value=description - need to swap
-          return { label: item.value || "", value: item.label || "" };
-        }
+        return { label: String(item.label || ""), value: String(item.value || "") };
       }
       
-      // Fallback: assume first column is value (code), second is label (description)
+      // 2. Detect value and label fields using common alias patterns (case-insensitive)
+      let valueKey = null;
+      let labelKey = null;
+      
+      for (const alias of VALUE_ALIASES) {
+        const idx = keysLower.indexOf(alias);
+        if (idx !== -1) { valueKey = keys[idx]; break; }
+      }
+      for (const alias of LABEL_ALIASES) {
+        const idx = keysLower.indexOf(alias);
+        if (idx !== -1) { labelKey = keys[idx]; break; }
+      }
+      
+      if (valueKey && labelKey) {
+        return { label: String(item[labelKey] || ""), value: String(item[valueKey] || "") };
+      }
+      
+      // 3. If only value alias found, use next available field as label
+      if (valueKey) {
+        const otherKey = keys.find(k => k !== valueKey);
+        return { label: String(item[otherKey] || item[valueKey] || ""), value: String(item[valueKey] || "") };
+      }
+      
+      // 4. Fallback: first column = value, second column = label
+      const values = Object.values(item);
       return {
-        label: values[1] || values[0] || "",
-        value: values[0] || "",
+        label: String(values[1] || values[0] || ""),
+        value: String(values[0] || ""),
       };
     });
     
@@ -2260,7 +2455,10 @@ ${variables.map(v => `    // Replace \${${v}} or {${v}} with query.${v} value
         if (typeof value === 'object' && value.in) {
           return `where.${field} = { in: ${JSON.stringify(value.in)} };`;
         } else {
-          return `where.${field} = ${JSON.stringify(value)};`;
+          // Use numeric value if it's a valid number, otherwise use string
+          const isNumeric = !isNaN(value) && !isNaN(parseFloat(value)) && String(value).trim() !== '';
+          const formattedValue = isNumeric ? Number(value) : JSON.stringify(value);
+          return `where.${field} = ${formattedValue};`;
         }
       })
       .join("\n      ");
@@ -2279,19 +2477,26 @@ ${variables.map(v => `    // Replace \${${v}} or {${v}} with query.${v} value
     selectFields.add(valueField);
   }
   
-  // Always include primary key for ordering
-  const primaryKeyField = tableInfo.primaryKey || 'id';
-  if (primaryKeyField) {
-    selectFields.add(primaryKeyField);
-  }
+  // For ordering: use the value field (first selected field), not the primary key
+  // This avoids errors when the guessed primary key doesn't exist on the model
+  const orderByField = valueField || labelField || tableInfo.primaryKey || 'id';
   
-  // Build select object for Prisma
+  // Build select object for Prisma (only include label and value fields — no PK needed for lookups)
   const selectFieldsArray = Array.from(selectFields);
   const selectCode = selectFieldsArray.length > 0 
     ? `select: {\n        ${selectFieldsArray.map(f => `${f}: true`).join(',\n        ')},\n      },`
     : '';
 
-  const code = `import prisma from "~/server/utils/prisma";
+  // Check if the original query has DISTINCT
+  const hasDistinct = /SELECT\s+DISTINCT\b/i.test(lookupQuery);
+  const distinctCode = hasDistinct && selectFieldsArray.length > 0
+    ? `distinct: [${selectFieldsArray.map(f => `'${f}'`).join(', ')}],`
+    : '';
+
+  const prismaImportLookup = tableInfo.usePrisma2
+    ? 'import prisma from "~/server/utils/prisma2";'
+    : 'import prisma from "~/server/utils/prisma";';
+  const code = `${prismaImportLookup}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -2302,8 +2507,9 @@ export default defineEventHandler(async (event) => {
     // Execute query using Prisma ORM (no raw SQL)
     const data = await prisma.${tableInfo.table}.findMany({
       ${selectCode}
+      ${distinctCode}
       ${whereConditionsCode ? `where,` : ""}
-      orderBy: { ${primaryKeyField}: 'asc' },
+      orderBy: { ${orderByField}: 'asc' },
     });
 
     // Map to options format with label and value (standard FormKit format)
@@ -2312,10 +2518,7 @@ export default defineEventHandler(async (event) => {
     const mappedData = data.map((item) => {
       return {
         label: item.${labelField} || item.${labelAlias} || "",
-        value: item.${valueField} || item.${valueAlias} || "",
-        // Also include original aliases for backward compatibility
-        ${labelAlias}: item.${labelField} || item.${labelAlias} || "",
-        ${valueAlias}: item.${valueField} || item.${valueAlias} || "",
+        value: item.${valueField} || item.${valueAlias} || "",${labelAlias !== 'label' ? `\n        ${labelAlias}: item.${labelField} || item.${labelAlias} || "",` : ''}${valueAlias !== 'value' ? `\n        ${valueAlias}: item.${valueField} || item.${valueAlias} || "",` : ''}
       };
     });
 
@@ -2339,79 +2542,24 @@ export default defineEventHandler(async (event) => {
 }
 
 // Generate Vue page file
+// Places the page exactly at the menu path selected in the page creator
 async function generateVuePage(page, components, componentItems) {
-  // Generate page path based on menu
-  let pageDirPath = "";
-  let pageFileName = "";
-
-  if (page.menu) {
-    // Check if menu is already a path (starts with /)
-    if (page.menu.startsWith("/")) {
-      // Menu is already a path like "/messagemanagement/setup"
-      // Remove leading slash and use as directory path
-      const menuPath = page.menu.substring(1); // Remove leading /
-      // Generate page name from pageTitle - remove spaces and special chars, keep lowercase
-      const pageName = page.pageTitle
-        .toLowerCase()
-        .replace(/\s+/g, "")
-        .replace(/[^a-z0-9]/g, "");
-      
-      // Check if menu path already ends with the page name
-      // If so, don't append it again (prevents duplicates like /path/pagename/pagename)
-      const normalizedMenuPath = menuPath.toLowerCase().replace(/\/+$/, ""); // Remove trailing slashes
-      const menuAlreadyIncludesPage = normalizedMenuPath.endsWith(pageName) || 
-                                       normalizedMenuPath.endsWith(`/${pageName}`);
-      
-      if (menuAlreadyIncludesPage) {
-        // Menu already includes the page name, use menu path as the full page directory
-        pageDirPath = menuPath;
-        pageFileName = ""; // No additional folder needed, just put index.vue in the menu path
-      } else {
-        // Menu is the parent path, append page name
-        pageDirPath = menuPath;
-        pageFileName = pageName;
-      }
-    } else if (page.menu.includes(">")) {
-      // Menu uses ">" separator like "Budget>Setup>Budget Code"
-      const menuParts = page.menu.split(">").map((part) =>
-        part
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "-")
-          .replace(/[^a-z0-9-]/g, "")
-      );
-      // Last part is the page name, rest is directory path
-      pageFileName = menuParts.pop() || `page-${page.pageId}`;
-      pageDirPath = menuParts.join("/");
-    } else {
-      // Simple menu string
-      const menuPath = page.menu
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
-      pageDirPath = menuPath;
-      pageFileName = `page-${page.pageId}`;
-    }
-  } else {
-    // No menu, use pageId
-    pageDirPath = "";
-    pageFileName = `page-${page.pageId}`;
+  if (!page.menu) {
+    throw new Error("Menu path is required to generate a page");
   }
 
+  // Use the menu path exactly as-is for the page file location
+  // Menu is a path like "/setup/glstructure/fundtype" → pages/setup/glstructure/fundtype/index.vue
+  const menuPath = page.menu.startsWith("/") ? page.menu.substring(1) : page.menu;
+  
   // Build full page path
   const pagesBaseDir = path.join(process.cwd(), "pages");
-  const fullPageDir = pageDirPath
-    ? path.join(pagesBaseDir, ...pageDirPath.split("/"))
-    : pagesBaseDir;
-  // If pageFileName is empty, put index.vue directly in fullPageDir
-  const pagePath = pageFileName 
-    ? path.join(fullPageDir, pageFileName, "index.vue")
-    : path.join(fullPageDir, "index.vue");
+  const fullPageDir = path.join(pagesBaseDir, ...menuPath.split("/"));
+  const pagePath = path.join(fullPageDir, "index.vue");
 
   // Create directory structure
-  const pageDir = path.dirname(pagePath);
-  if (!fs.existsSync(pageDir)) {
-    fs.mkdirSync(pageDir, { recursive: true });
+  if (!fs.existsSync(fullPageDir)) {
+    fs.mkdirSync(fullPageDir, { recursive: true });
   }
 
   // Generate page content based on components
@@ -2434,9 +2582,17 @@ function generateVuePageContent(page, components, componentItems, pageId) {
   const topFilterComponents = sortedComponents.filter((c) => c.type === "form_TopFilter");
   const popupModalComponents = sortedComponents.filter((c) => c.type === "form_PopupModal");
   const buttonComponents = sortedComponents.filter((c) => c.type === "Button" || c.type === "button");
+  // When no datatable: form-only page uses any component with form items. When datatable exists: include form-inline components so script has dropdown/format for them
+  const formOnlyComponents = datatableComponents.length === 0
+    ? sortedComponents.filter((c) => componentItems.some((ci) => ci.componentId === c.id && ci.type))
+    : sortedComponents.filter((c) => {
+        if (c.type === "datatable" || c.type === "form_PopupModal" || c.type === "form_SmartFilter" || c.type === "form_TopFilter") return false;
+        if (c.type === "Button" || c.type === "button") return false;
+        return componentItems.some((ci) => ci.componentId === c.id && ci.type);
+      });
 
   // Generate script section (also returns dropdownOptionsMap for template generation)
-  const { scriptSection, dropdownOptionsMap } = generateScriptSection(page, datatableComponents, smartFilterComponents, topFilterComponents, popupModalComponents, buttonComponents, componentItems, pageId);
+  const { scriptSection, dropdownOptionsMap } = generateScriptSection(page, datatableComponents, smartFilterComponents, topFilterComponents, popupModalComponents, buttonComponents, formOnlyComponents, componentItems, pageId);
 
   // Generate template section
   const templateSection = generateTemplateSection(page, sortedComponents, componentItems, dropdownOptionsMap, pageId);
@@ -2444,12 +2600,27 @@ function generateVuePageContent(page, components, componentItems, pageId) {
   return `${scriptSection}\n\n${templateSection}`;
 }
 
-function generateScriptSection(page, datatableComponents, smartFilterComponents, topFilterComponents, popupModalComponents, buttonComponents, componentItems, pageId) {
+function generateScriptSection(page, datatableComponents, smartFilterComponents, topFilterComponents, popupModalComponents, buttonComponents, formOnlyComponents, componentItems, pageId) {
   const pageTitle = page.pageTitle.replace(/"/g, '\\"');
   const pageName = page.pageTitle
     .toLowerCase()
     .replace(/\s+/g, "")
     .replace(/[^a-z0-9]/g, "");
+
+  // Check if any form (form-only or modal) has textfield/textarea with format-uppercase, format-initcap, or format-lowercase in cssClass
+  const formCompsForFormat = [...(formOnlyComponents || []), ...popupModalComponents];
+  let hasFormatFields = false;
+  for (const comp of formCompsForFormat) {
+    const items = componentItems.filter((ci) => ci.componentId === comp.id && (ci.type === "textfield" || ci.type === "textarea"));
+    for (const item of items) {
+      const css = (item.cssClass || "").toLowerCase();
+      if (css.includes("format-uppercase") || css.includes("format-initcap") || css.includes("format-lowercase")) {
+        hasFormatFields = true;
+        break;
+      }
+    }
+    if (hasFormatFields) break;
+  }
   
   // Use pageId parameter or fallback to page.pageId
   const currentPageId = pageId || page.pageId;
@@ -2515,12 +2686,18 @@ function generateScriptSection(page, datatableComponents, smartFilterComponents,
 
   const breadcrumbJson = JSON.stringify(breadcrumbItems, null, 2).replace(/"/g, '\\"');
 
-  // Find all dropdown items with lookup_queryMapping
-  // Include form_PopupModal and Button components in dropdown options generation
-  const allComponents = [...datatableComponents, ...topFilterComponents, ...smartFilterComponents, ...popupModalComponents, ...buttonComponents];
+  // For useMessageLog: breadcrumb text and module name (parent menu)
+  const pageBreadcrumbTextForLog = breadcrumbItems.length > 0 ? breadcrumbItems.map((b) => b.name).join(" > ") : ("Dashboard > " + pageTitle);
+  const moduleNameForLog = breadcrumbItems.length >= 2 ? breadcrumbItems[breadcrumbItems.length - 2].name : (breadcrumbItems[0]?.name || pageTitle);
+  const safePageTitleForLog = pageTitle.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const safeModuleForLog = (moduleNameForLog || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const safeBreadcrumbForLog = (pageBreadcrumbTextForLog || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+  // Find all dropdown/radio/listbox items with lookup_queryMapping (checkbox uses Default Value, not lookup)
+  const allComponents = [...datatableComponents, ...topFilterComponents, ...smartFilterComponents, ...popupModalComponents, ...buttonComponents, ...(formOnlyComponents || [])];
   const dropdownItems = [];
   allComponents.forEach(component => {
-    const items = componentItems.filter((ci) => ci.componentId === component.id && ci.type === "dropdown" && ci.lookup_queryMapping && ci.lookup_queryMapping.trim());
+    const items = componentItems.filter((ci) => ci.componentId === component.id && (ci.type === "dropdown" || ci.type === "radio" || ci.type === "listbox") && ci.lookup_queryMapping && ci.lookup_queryMapping.trim());
     dropdownItems.push(...items);
   });
 
@@ -2594,22 +2771,29 @@ function generateScriptSection(page, datatableComponents, smartFilterComponents,
       // SQL query format - use API endpoint
       dropdownOptionsRefs += `const ${optionsVarName} = ref([]);\n`;
       
+      // Detect static-value queries (FROM dual, UNION literals, no FROM clause)
+      // These generate static JSON endpoints that always return {label, value} format
+      const isStaticLookup = /\bFROM\s+dual\b/i.test(lookupQuery) ||
+        (/\bUNION\s+(ALL\s+)?SELECT\b/i.test(lookupQuery) && !/\bFROM\s+(?!dual\b)\w+/i.test(lookupQuery)) ||
+        (/^SELECT\b/i.test(lookupQuery.trim()) && !/\bFROM\b/i.test(lookupQuery));
+      
       // Parse the lookup query to extract fields and aliases
-      const parsedFields = parseLookupQueryFields(lookupQuery);
+      const parsedFields = isStaticLookup ? null : parseLookupQueryFields(lookupQuery);
       const lookupApiPath = `/api/page-generated/${currentPageId}/lookups/${fieldName}`;
       
       // Extract variables for cascading dropdown support (e.g., ${Fund}, ${PTJ})
       const dependsOn = extractLookupVariables(lookupQuery);
       
       // Always add to dropdownOptionsMap - use parsed fields if available, otherwise use defaults
+      // For static lookups, always use 'label'/'value' since the generated endpoint returns standard format
       dropdownOptionsMap[fieldName] = {
         optionsVarName,
         lookupQuery,
         apiPath: lookupApiPath,
-        labelField: parsedFields?.labelField || 'label',
-        valueField: parsedFields?.valueField || 'value',
-        labelAlias: parsedFields?.labelAlias || 'label',
-        valueAlias: parsedFields?.valueAlias || 'value',
+        labelField: isStaticLookup ? 'label' : (parsedFields?.labelField || 'label'),
+        valueField: isStaticLookup ? 'value' : (parsedFields?.valueField || 'value'),
+        labelAlias: isStaticLookup ? 'label' : (parsedFields?.labelAlias || 'label'),
+        valueAlias: isStaticLookup ? 'value' : (parsedFields?.valueAlias || 'value'),
         isJson: false,
         dependsOn: dependsOn, // Array of parent field names this dropdown depends on
       };
@@ -2740,6 +2924,8 @@ ${fetchCalls}
   }
 
   let script = `<script setup>
+import { useMessageLog } from "~/composables/useMessageLog";
+
 definePageMeta({
   title: "${pageTitle}",
   middleware: ["auth"],
@@ -2748,10 +2934,35 @@ definePageMeta({
 });
 
 const { $swal } = useNuxtApp();
+const route = useRoute();
+
+const pageNameForLog = "${safePageTitleForLog}";
+const moduleNameForLog = "${safeModuleForLog}";
+const pageBreadcrumbTextForLog = "${safeBreadcrumbForLog}";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName: pageNameForLog,
+  moduleName: moduleNameForLog,
+  pageBreadcrumbText: pageBreadcrumbTextForLog,
+});
 
 // Table data
 const ${pageName}List = ref([]);
 const loading = ref(false);
+const exportConfigRef = ref(null);
+const datatableRef = ref(null);
+
+// Collapse state for datatable
+${(() => {
+  if (datatableComponents.length > 0) {
+    const dt = datatableComponents[0];
+    const collapseEnable = parseInt(dt.collapseEnable) === 1;
+    if (collapseEnable) {
+      const collapseByDefault = parseInt(dt.collapseByDefault) === 1;
+      return `const isTableCollapsed = ref(${collapseByDefault ? 'true' : 'false'});`;
+    }
+  }
+  return '';
+})()}
 
 // Search and filter state
 const searchKeyword = ref("");
@@ -2959,6 +3170,19 @@ const formatDateForInput = (value) => {
     return '';
   }
 };
+${hasFormatFields ? `
+// Format text on blur (format-uppercase, format-initcap, format-lowercase from component item cssClass)
+const handleFormatBlur = (fieldName, format) => {
+  const form = ${pageName}Form.value;
+  if (!form) return;
+  const v = form[fieldName];
+  if (v == null) return;
+  const s = String(v);
+  if (format === 'uppercase') form[fieldName] = s.toUpperCase();
+  else if (format === 'lowercase') form[fieldName] = s.toLowerCase();
+  else if (format === 'initcap') form[fieldName] = s.replace(/\\\\b\\\\w/g, c => c.toUpperCase());
+};
+` : ""}
 
 // Fetch data function - fetches all data, rs-table handles pagination client-side
 const fetchData = async () => {
@@ -2990,6 +3214,31 @@ const fetchData = async () => {
     if (!apiPath.startsWith('/')) {
       apiPath = '/' + apiPath;
     }
+    
+    // Build field alias mapping: dt_key (db field) -> dt_bi (display column header)
+    // This maps API response fields to the display names expected by rs-table columns
+    const dtKeys = componentData.dt_key || [];
+    const dtBi = componentData.dt_bi || [];
+    const fieldAliasEntries = [];
+    dtKeys.forEach((key, idx) => {
+      const alias = (dtBi[idx] || "").trim();
+      const keyTrimmed = (key || "").trim();
+      // Only map if both exist, they differ, and neither is special (No, Action, checkbox inputs)
+      if (keyTrimmed && alias && keyTrimmed !== alias && 
+          keyTrimmed.toLowerCase() !== 'no' && keyTrimmed.toLowerCase() !== 'action' &&
+          alias.toLowerCase() !== 'no' && alias.toLowerCase() !== 'action' &&
+          !alias.includes('<input')) {
+        fieldAliasEntries.push(`          ${JSON.stringify(keyTrimmed)}: ${JSON.stringify(alias)}`);
+      }
+    });
+    const hasFieldAliases = fieldAliasEntries.length > 0;
+    const fieldAliasMapCode = hasFieldAliases 
+      ? `\n        // Map database field names to display column headers (dt_key -> dt_bi)\n        const fieldAliasMap = {\n${fieldAliasEntries.join(',\n')}\n        };\n` 
+      : '';
+    const fieldAliasMappingCode = hasFieldAliases
+      ? `\n          // Apply field alias mapping (db field name -> display column name)\n          Object.entries(fieldAliasMap).forEach(([dbField, displayName]) => {\n            if (item[dbField] !== undefined) {\n              mappedItem[displayName] = item[dbField];\n            }\n          });`
+      : '';
+    
     script += `
     const { data: data${index} } = await useFetch("${apiPath}", {
       method: "GET",
@@ -2997,7 +3246,7 @@ const fetchData = async () => {
       initialCache: false,
     });
 
-    if (data${index}.value?.statusCode === 200) {
+    if (data${index}.value?.statusCode === 200) {${fieldAliasMapCode}
       ${pageName}List.value = (data${index}.value.data || []).map((item, idx) => {
         const mappedItem = {
           no: idx + 1,
@@ -3006,7 +3255,7 @@ const fetchData = async () => {
         // Map fields from API response
         Object.keys(item).forEach((key) => {
           mappedItem[key] = item[key];
-        });
+        });${fieldAliasMappingCode}
         return mappedItem;
       });
       applyFilters();
@@ -3092,15 +3341,21 @@ const applyFilters = () => {
                 if (!itemFieldName) return;
                 
                 // Check if there's a field mapping (alias) from componentData
+                // Must use same fieldName as form (key without _filter) - form uses alias when filter item matches dt_key
                 if (componentData && componentData.dt_bi && componentData.dt_key && 
                     Array.isArray(componentData.dt_bi) && Array.isArray(componentData.dt_key)) {
                   const aliases = componentData.dt_bi || [];
                   const keys = componentData.dt_key || [];
+                  const itemNameWithoutFilter = (item.name || "").replace(/_filter$/, "");
                   keys.forEach((key, index) => {
                     if (!key) return;
                     const alias = aliases[index];
-                    // Use case-insensitive matching that ignores spaces, hyphens, and underscores
-                    if (alias && (fieldNamesMatch(key, item.name) || fieldNamesMatch(alias, item.name))) {
+                    // Match: key/alias to item.name, or key to item.name without _filter (e.g. lbc_status_filter -> lbc_status)
+                    const matches = alias && (
+                      fieldNamesMatch(key, item.name) || fieldNamesMatch(alias, item.name) ||
+                      fieldNamesMatch(key, itemNameWithoutFilter) || fieldNamesMatch(alias, item.title)
+                    );
+                    if (matches) {
                       const aliasFieldName = (alias || key).replace(/[^a-zA-Z0-9]/g, "_");
                       if (aliasFieldName) {
                         dropdownFields.add(aliasFieldName);
@@ -3199,6 +3454,204 @@ const handleFilterClose = () => {
   showSmartFilter.value = false;
 };
 
+// 3-dot menu: Save Template, Load Template, Ungroup/Group List, Generate API
+const templateFileInputRef = ref(null);
+
+const handleSaveTemplate = async () => {
+  const tableState = datatableRef.value?.getTemplateState?.();
+  if (!tableState) return;
+
+  const template = {
+    version: 1,
+    pageName: pageNameForLog,
+    columnOrder: tableState.columnOrder,
+    hiddenColumns: tableState.hiddenColumns,
+    sortColumn: tableState.sortColumn,
+    sortDirection: tableState.sortDirection,
+    isGrouped: isGrouped.value,
+    searchKeyword: searchKeyword.value || "",
+    smartFilter: { ...smartFilter.value },
+  };
+
+  const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+  const suggestedName = \`\${pageNameForLog} Template.json\`;
+
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: "JSON Template", accept: { "application/json": [".json"] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        $swal.fire({ title: "Error", text: err.message || "Failed to save template", icon: "error" });
+      }
+    }
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+};
+
+const handleLoadTemplate = () => {
+  templateFileInputRef.value?.click();
+};
+
+const onTemplateFileChange = (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const template = JSON.parse(e.target?.result || "{}");
+      if (!template.columnOrder || !Array.isArray(template.columnOrder)) {
+        $swal.fire({ title: "Invalid Template", text: "Invalid template file format.", icon: "error" });
+        return;
+      }
+      datatableRef.value?.applyTemplateState?.(template);
+      if (template.searchKeyword !== undefined) searchKeyword.value = template.searchKeyword;
+      if (template.smartFilter && typeof template.smartFilter === "object") {
+        smartFilter.value = { ...template.smartFilter };
+      }
+      if (template.isGrouped !== undefined && typeof isGrouped !== 'undefined') isGrouped.value = !!template.isGrouped;
+      applyFilters();
+    } catch (err) {
+      $swal.fire({ title: "Invalid Template", text: "Failed to parse template file.", icon: "error" });
+    }
+    event.target.value = "";
+  };
+  reader.readAsText(file);
+};
+
+const showGenerateApiModal = ref(false);
+const apiOutputType = ref("JSON");
+const generateApiLoading = ref(false);
+
+const handleGenerateApi = () => {
+  apiOutputType.value = "JSON";
+  showGenerateApiModal.value = true;
+};
+
+const handleGenerateApiProceed = async () => {
+  try {
+    generateApiLoading.value = true;
+    const tableState = datatableRef.value?.getTemplateState?.();
+    const exportConfig = datatableRef.value?.getExportConfig?.();
+    const templateDetails = tableState
+      ? {
+          columnOrder: tableState.columnOrder,
+          hiddenColumns: tableState.hiddenColumns,
+          sortColumn: tableState.sortColumn,
+          sortDirection: tableState.sortDirection,
+          isGrouped: isGrouped.value,
+          searchKeyword: searchKeyword.value || "",
+          smartFilter: { ...smartFilter.value },
+          exportColumns: exportConfig?.columns ?? null,
+        }
+      : {};
+    const apiDataPath = "${(datatableComponents[0] ? (() => {
+      try {
+        const dt = datatableComponents[0];
+        const cd = dt.componentData ? (typeof dt.componentData === 'string' ? JSON.parse(dt.componentData) : dt.componentData) : {};
+        let p = cd.dt_ajax || "";
+        if (!p) {
+          const apiFolderPath = getApiFolderPathFromMenu(page.menu, page.pageTitle);
+          p = apiFolderPath ? "/api/" + apiFolderPath : "/api/page-generated/" + (page.pageId || pageId) + "/" + (dt.id || "");
+        }
+        return (p.startsWith("/") ? p : "/" + p);
+      } catch (e) { return ""; }
+    })() : "")}";
+    const kerisiExportSlug = apiDataPath ? apiDataPath.replace(/^\\/api\\//, "").replace(/^\\//, "") : "";
+    const apiBaseUrl = (typeof window !== "undefined" && window.location) ? \`\${window.location.origin}/api/kerisi-export/\${kerisiExportSlug}\` : "";
+    const { data } = await useFetch("/api/api-gen-template", {
+      method: "POST",
+      body: {
+        api_base_url: apiBaseUrl + (apiBaseUrl.includes("?") ? "" : "?"),
+        api_data_path: apiDataPath || null,
+        api_output_type: apiOutputType.value,
+        api_gen_template_details: templateDetails,
+      },
+    });
+    if (data.value?.statusCode === 200 && data.value?.data?.full_url) {
+      const fullUrl = data.value.data.full_url;
+      showGenerateApiModal.value = false;
+      $swal.fire({
+        title: "API Generated Successfully",
+        html: \`
+          <p class="mb-4">Your API key has been created. Use the URL below to access your data:</p>
+          <div class="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm font-mono">
+            <span class="flex-1 break-all">\${fullUrl}</span>
+            <button type="button" id="swal-copy-url-btn" class="shrink-0 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="Copy URL">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            </button>
+          </div>
+          <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">JSON and PDF display in browser. CSV and Excel will download.</p>
+        \`,
+        icon: "success",
+        width: 600,
+        didOpen: () => {
+          const btn = document.getElementById("swal-copy-url-btn");
+          if (btn) {
+            btn.addEventListener("click", async () => {
+              try {
+                await navigator.clipboard.writeText(fullUrl);
+                btn.title = "Copied!";
+                const svg = btn.querySelector("svg");
+                if (svg) svg.style.color = "var(--color-success, #22c55e)";
+                setTimeout(() => {
+                  btn.title = "Copy URL";
+                  if (svg) svg.style.color = "";
+                }, 1500);
+              } catch {
+                $swal.fire({ title: "Copy failed", text: "Please copy the URL manually.", icon: "warning", timer: 2000 });
+              }
+            });
+          }
+        },
+      }).then((result) => {
+        if (result.isConfirmed) {
+          navigator.clipboard.writeText(fullUrl).catch(() => {});
+        }
+      });
+    } else {
+      const errMsg = data.value?.message || data.value?.error || "Failed to generate API";
+      $swal.fire({
+        title: "Error",
+        text: errMsg,
+        icon: "error",
+      });
+    }
+  } catch (error) {
+    console.error("Generate API error:", error);
+    $swal.fire({
+      title: "Error",
+      text: "Failed to generate API. Please try again.",
+      icon: "error",
+    });
+  } finally {
+    generateApiLoading.value = false;
+  }
+};
+
+const handleCloseGenerateApiModal = () => {
+  showGenerateApiModal.value = false;
+};
+
+const isGrouped = ref(${(() => {
+  if (datatableComponents.length === 0) return 'false';
+  const d = datatableComponents[0].componentData ? (typeof datatableComponents[0].componentData === 'string' ? JSON.parse(datatableComponents[0].componentData) : datatableComponents[0].componentData) : {};
+  const groupingEnabled = d.dt_column_grouping_list === true || d.dt_column_grouping_list === "true";
+  return groupingEnabled ? 'true' : 'false';
+})()});
+const handleUngroupList = () => { isGrouped.value = false; };
+const handleGroupList = () => { isGrouped.value = true; };
 ${(() => {
   // Check if download PDF is enabled
   if (datatableComponents.length > 0) {
@@ -3207,8 +3660,13 @@ ${(() => {
       try {
         const compData = typeof dt.componentData === 'string' ? JSON.parse(dt.componentData) : dt.componentData;
         if (compData.dt_download_pdf === true || compData.dt_download_pdf === "true") {
-          // Get column headers (dt_bi) excluding 'No' and 'Action'
-          const columns = (compData.dt_bi || []).filter((col) => col && col !== 'No' && col !== 'Action');
+          // Get column headers (dt_bi) excluding 'No', 'Action', and d-none columns
+          const dtBi = compData.dt_bi || [];
+          const dtClass = compData.dt_class || [];
+          const columnsWithOrigIdx = dtBi
+            .map((col, idx) => ({ col, cls: dtClass[idx] || '', origIdx: idx }))
+            .filter(({ col, cls }) => col && col !== 'No' && col !== 'Action' && !String(cls).toLowerCase().includes('d-none'));
+          const columns = columnsWithOrigIdx.map(({ col }) => col);
           
           // Build mapping of column names to their options variable names for dropdowns/radios/checkboxes/listboxes
           const columnToOptionsMap = {};
@@ -3216,8 +3674,8 @@ ${(() => {
           const columnDateTypeMap = {};
           const dt_key = compData.dt_key || [];
           
-          columns.forEach((columnHeader, index) => {
-            const key = dt_key[index] || "";
+          columnsWithOrigIdx.forEach(({ col: columnHeader, origIdx }) => {
+            const key = dt_key[origIdx] || "";
             const columnHeaderLower = columnHeader.toLowerCase();
             const keyLower = key.toLowerCase();
             
@@ -3236,9 +3694,14 @@ ${(() => {
             
             if (matchingItem && matchingItem.lookup_queryMapping) {
               const itemFieldName = matchingItem.name.replace(/[^a-zA-Z0-9]/g, "_");
-              const lookupKey = findDropdownOptionsKey(dropdownOptionsMap, matchingItem.name) || itemFieldName;
-              const lookupInfo = dropdownOptionsMap[lookupKey];
-              
+              let lookupKey = findDropdownOptionsKey(dropdownOptionsMap, matchingItem.name) || findDropdownOptionsKey(dropdownOptionsMap, key) || itemFieldName;
+              let lookupInfo = dropdownOptionsMap[lookupKey];
+              // Fallback: try dt_key directly (e.g. lbc_status) - dropdownOptionsMap keys are often from field names
+              if (!lookupInfo && key) {
+                const keyNorm = key.replace(/[^a-zA-Z0-9]/g, "_");
+                lookupInfo = dropdownOptionsMap[keyNorm];
+                if (lookupInfo) lookupKey = keyNorm;
+              }
               if (lookupInfo) {
                 const optionsVarName = lookupInfo.optionsVarName || `${itemFieldName}Options`;
                 columnToOptionsMap[columnHeader] = optionsVarName;
@@ -3297,8 +3760,10 @@ const handleDownloadPDF = async () => {
     const { default: jsPDF } = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
     
-    // Get current filtered data
-    let dataToExport = [...filtered${pageName.charAt(0).toUpperCase() + pageName.slice(1)}List.value];
+    // Get export config from table (respects hidden, moved, grouped columns) or fallback to filtered list
+    const exportConfig = datatableRef.value?.getExportConfig?.() ?? (typeof exportConfigRef.value === 'function' ? exportConfigRef.value() : null);
+    const exportColumns = exportConfig ? exportConfig.columns : ${JSON.stringify(columns)};
+    let dataToExport = exportConfig ? [...exportConfig.data] : [...filtered${pageName.charAt(0).toUpperCase() + pageName.slice(1)}List.value];
     
     if (dataToExport.length === 0) {
       $swal.fire({
@@ -3384,12 +3849,8 @@ const handleDownloadPDF = async () => {
     const titleY = margin + (logoHeight > 0 ? logoHeight + 3 : 10);
     doc.text(title, titleX, titleY);
     
-    // Prepare table data
-    const exportColumns = ${JSON.stringify(columns)};
-    const columnToOptionsMap = ${JSON.stringify(columnToOptionsMap)};
+    // Prepare table data (exportColumns already set above)
     const columnDateTypeMap = ${JSON.stringify(columnDateTypeMap)};
-    
-    // Build options lookup object for dropdown/radio/checkbox/listbox columns
     const columnOptionsLookup = {};
     ${(() => {
       if (Object.keys(columnToOptionsMap).length === 0) return '';
@@ -3398,27 +3859,28 @@ const handleDownloadPDF = async () => {
       }).join('\n    ');
     })()}
     
+    const formatCell = (item, col, val) => {
+      const options = columnOptionsLookup[col];
+      const dateType = columnDateTypeMap[col];
+      const value = val !== undefined ? val : item[col];
+      if (options) return (getLookupLabel(options, value) || '').toString();
+      if (dateType === 'datetime') return formatDateTime(value);
+      if (dateType === 'date') return formatDate(value);
+      return (value || '').toString();
+    };
+    
+    const { groupedInfo, columnTitleIndices } = exportConfig || {};
     const tableData = dataToExport.map((item, index) => {
       const row = [(index + 1).toString()];
-      exportColumns.forEach((col) => {
-        // Check if this column has a lookup (dropdown/radio/checkbox/listbox)
-        const options = columnOptionsLookup[col];
-        // Check if this column is a date/datetime column
-        const dateType = columnDateTypeMap[col];
-        
-        if (options) {
-          // Use getLookupLabel to convert value to label
-          const label = getLookupLabel(options, item[col]);
-          row.push((label || '').toString());
-        } else if (dateType === 'datetime') {
-          // Format as datetime: DD/MM/YYYY HH:MI:SS AM/PM
-          row.push(formatDateTime(item[col]));
-        } else if (dateType === 'date') {
-          // Format as date: DD/MM/YYYY
-          row.push(formatDate(item[col]));
-        } else {
-          row.push((item[col] || '').toString());
+      exportColumns.forEach((col, colIdx) => {
+        const titleIdx = columnTitleIndices?.[colIdx];
+        const cellInfo = groupedInfo?.[index]?.[titleIdx];
+        if (cellInfo?.rowspan > 0) {
+          row.push({ content: formatCell(item, col, cellInfo.value), rowSpan: cellInfo.rowspan, styles: { valign: 'middle' } });
+        } else if (cellInfo?.rowspan !== 0) {
+          row.push(formatCell(item, col));
         }
+        // rowspan === 0: omit cell (covered by rowspan above) - jspdf-autotable expects fewer cells
       });
       return row;
     });
@@ -3496,8 +3958,13 @@ const handleDownloadPDF = async () => {
       try {
         const compData = typeof dt.componentData === 'string' ? JSON.parse(dt.componentData) : dt.componentData;
         if (compData.dt_download_csv === true || compData.dt_download_csv === "true") {
-          // Get column headers (dt_bi) excluding 'No' and 'Action'
-          const columns = (compData.dt_bi || []).filter((col) => col && col !== 'No' && col !== 'Action');
+          // Get column headers (dt_bi) excluding 'No', 'Action', and d-none columns
+          const dtBi = compData.dt_bi || [];
+          const dtClass = compData.dt_class || [];
+          const columnsWithOrigIdx = dtBi
+            .map((col, idx) => ({ col, cls: dtClass[idx] || '', origIdx: idx }))
+            .filter(({ col, cls }) => col && col !== 'No' && col !== 'Action' && !String(cls).toLowerCase().includes('d-none'));
+          const columns = columnsWithOrigIdx.map(({ col }) => col);
           
           // Build mapping of column names to their options variable names for dropdowns/radios/checkboxes/listboxes
           const columnToOptionsMap = {};
@@ -3505,8 +3972,8 @@ const handleDownloadPDF = async () => {
           const columnDateTypeMap = {};
           const dt_key = compData.dt_key || [];
           
-          columns.forEach((columnHeader, index) => {
-            const key = dt_key[index] || "";
+          columnsWithOrigIdx.forEach(({ col: columnHeader, origIdx }) => {
+            const key = dt_key[origIdx] || "";
             const columnHeaderLower = columnHeader.toLowerCase();
             const keyLower = key.toLowerCase();
             
@@ -3525,9 +3992,14 @@ const handleDownloadPDF = async () => {
             
             if (matchingItem && matchingItem.lookup_queryMapping) {
               const itemFieldName = matchingItem.name.replace(/[^a-zA-Z0-9]/g, "_");
-              const lookupKey = findDropdownOptionsKey(dropdownOptionsMap, matchingItem.name) || itemFieldName;
-              const lookupInfo = dropdownOptionsMap[lookupKey];
-              
+              let lookupKey = findDropdownOptionsKey(dropdownOptionsMap, matchingItem.name) || findDropdownOptionsKey(dropdownOptionsMap, key) || itemFieldName;
+              let lookupInfo = dropdownOptionsMap[lookupKey];
+              // Fallback: try dt_key directly (e.g. lbc_status) - dropdownOptionsMap keys are often from field names
+              if (!lookupInfo && key) {
+                const keyNorm = key.replace(/[^a-zA-Z0-9]/g, "_");
+                lookupInfo = dropdownOptionsMap[keyNorm];
+                if (lookupInfo) lookupKey = keyNorm;
+              }
               if (lookupInfo) {
                 const optionsVarName = lookupInfo.optionsVarName || `${itemFieldName}Options`;
                 columnToOptionsMap[columnHeader] = optionsVarName;
@@ -3582,8 +4054,10 @@ const handleDownloadPDF = async () => {
           return `// Download CSV function
 const handleDownloadCSV = () => {
   try {
-    // Get current filtered data
-    let dataToExport = [...filtered${pageName.charAt(0).toUpperCase() + pageName.slice(1)}List.value];
+    // Get export config from table (respects hidden, moved, grouped columns) or fallback to filtered list
+    const exportConfig = datatableRef.value?.getExportConfig?.() ?? (typeof exportConfigRef.value === 'function' ? exportConfigRef.value() : null);
+    const exportColumns = exportConfig ? exportConfig.columns : ${JSON.stringify(columns)};
+    let dataToExport = exportConfig ? [...exportConfig.data] : [...filtered${pageName.charAt(0).toUpperCase() + pageName.slice(1)}List.value];
     
     if (dataToExport.length === 0) {
       $swal.fire({
@@ -3616,8 +4090,7 @@ const handleDownloadCSV = () => {
       return str;
     };
     
-    // CSV Headers
-    const exportColumns = ${JSON.stringify(columns)};
+    // CSV Headers (exportColumns already set above)
     const columnToOptionsMap = ${JSON.stringify(columnToOptionsMap)};
     const columnDateTypeMap = ${JSON.stringify(columnDateTypeMap)};
     const headers = ['No.', ...exportColumns];
@@ -3782,27 +4255,29 @@ const handleDownloadCSV = () => {
     // Add headers
     csvContent += headers.map(escapeCSVField).join(',') + '\\n';
     
-    // Add data rows
+    const formatCell = (item, col, val) => {
+      const options = columnOptionsLookup[col];
+      const dateType = columnDateTypeMap[col];
+      const value = val !== undefined ? val : item[col];
+      if (options) return (getLookupLabel(options, value) || '').toString();
+      if (dateType === 'datetime') return formatDateTime(value);
+      if (dateType === 'date') return formatDate(value);
+      return (value || '').toString();
+    };
+    
+    const { groupedInfo, columnTitleIndices } = exportConfig || {};
+    // Add data rows (with grouping like PDF - empty for rowspan 0 covered cells)
     dataToExport.forEach((item, index) => {
       const row = [(index + 1).toString()];
-      exportColumns.forEach((col) => {
-        // Check if this column has a lookup (dropdown/radio/checkbox/listbox)
-        const options = columnOptionsLookup[col];
-        // Check if this column is a date/datetime column
-        const dateType = columnDateTypeMap[col];
-        
-        if (options) {
-          // Use getLookupLabel to convert value to label
-          const label = getLookupLabel(options, item[col]);
-          row.push(label || '');
-        } else if (dateType === 'datetime') {
-          // Format as datetime: DD/MM/YYYY HH:MI:SS AM/PM
-          row.push(formatDateTime(item[col]));
-        } else if (dateType === 'date') {
-          // Format as date: DD/MM/YYYY
-          row.push(formatDate(item[col]));
+      exportColumns.forEach((col, colIdx) => {
+        const titleIdx = columnTitleIndices?.[colIdx];
+        const cellInfo = groupedInfo?.[index]?.[titleIdx];
+        if (cellInfo?.rowspan > 0) {
+          row.push(formatCell(item, col, cellInfo.value));
+        } else if (cellInfo?.rowspan === 0) {
+          row.push('');
         } else {
-          row.push(item[col] || '');
+          row.push(formatCell(item, col));
         }
       });
       csvContent += row.map(escapeCSVField).join(',') + '\\n';
@@ -3855,8 +4330,13 @@ const handleDownloadCSV = () => {
       try {
         const compData = typeof dt.componentData === 'string' ? JSON.parse(dt.componentData) : dt.componentData;
         if (compData.dt_download_excel === true || compData.dt_download_excel === "true") {
-          // Get column headers (dt_bi) excluding 'No' and 'Action'
-          const columns = (compData.dt_bi || []).filter((col) => col && col !== 'No' && col !== 'Action');
+          // Get column headers (dt_bi) excluding 'No', 'Action', and d-none columns
+          const dtBi = compData.dt_bi || [];
+          const dtClass = compData.dt_class || [];
+          const columnsWithOrigIdx = dtBi
+            .map((col, idx) => ({ col, cls: dtClass[idx] || '', origIdx: idx }))
+            .filter(({ col, cls }) => col && col !== 'No' && col !== 'Action' && !String(cls).toLowerCase().includes('d-none'));
+          const columns = columnsWithOrigIdx.map(({ col }) => col);
           
           // Build mapping of column names to their options variable names for dropdowns/radios/checkboxes/listboxes
           const columnToOptionsMap = {};
@@ -3864,8 +4344,8 @@ const handleDownloadCSV = () => {
           const columnDateTypeMap = {};
           const dt_key = compData.dt_key || [];
           
-          columns.forEach((columnHeader, index) => {
-            const key = dt_key[index] || "";
+          columnsWithOrigIdx.forEach(({ col: columnHeader, origIdx }) => {
+            const key = dt_key[origIdx] || "";
             const columnHeaderLower = columnHeader.toLowerCase();
             const keyLower = key.toLowerCase();
             
@@ -3884,9 +4364,14 @@ const handleDownloadCSV = () => {
             
             if (matchingItem && matchingItem.lookup_queryMapping) {
               const itemFieldName = matchingItem.name.replace(/[^a-zA-Z0-9]/g, "_");
-              const lookupKey = findDropdownOptionsKey(dropdownOptionsMap, matchingItem.name) || itemFieldName;
-              const lookupInfo = dropdownOptionsMap[lookupKey];
-              
+              let lookupKey = findDropdownOptionsKey(dropdownOptionsMap, matchingItem.name) || findDropdownOptionsKey(dropdownOptionsMap, key) || itemFieldName;
+              let lookupInfo = dropdownOptionsMap[lookupKey];
+              // Fallback: try dt_key directly (e.g. lbc_status) - dropdownOptionsMap keys are often from field names
+              if (!lookupInfo && key) {
+                const keyNorm = key.replace(/[^a-zA-Z0-9]/g, "_");
+                lookupInfo = dropdownOptionsMap[keyNorm];
+                if (lookupInfo) lookupKey = keyNorm;
+              }
               if (lookupInfo) {
                 const optionsVarName = lookupInfo.optionsVarName || `${itemFieldName}Options`;
                 columnToOptionsMap[columnHeader] = optionsVarName;
@@ -3944,8 +4429,10 @@ const handleDownloadExcel = async () => {
     // Import ExcelJS dynamically for better styling support
     const ExcelJS = await import('exceljs');
     
-    // Get current filtered data
-    let dataToExport = [...filtered${pageName.charAt(0).toUpperCase() + pageName.slice(1)}List.value];
+    // Get export config from table (respects hidden, moved, grouped columns) or fallback to filtered list
+    const exportConfig = datatableRef.value?.getExportConfig?.() ?? (typeof exportConfigRef.value === 'function' ? exportConfigRef.value() : null);
+    const exportColumns = exportConfig ? exportConfig.columns : ${JSON.stringify(columns)};
+    let dataToExport = exportConfig ? [...exportConfig.data] : [...filtered${pageName.charAt(0).toUpperCase() + pageName.slice(1)}List.value];
     
     if (dataToExport.length === 0) {
       $swal.fire({
@@ -4120,8 +4607,7 @@ const handleDownloadExcel = async () => {
       worksheetData.push([]);
     }
     
-    // Add headers
-    const exportColumns = ${JSON.stringify(columns)};
+    // Add headers (exportColumns already set above)
     const columnToOptionsMap = ${JSON.stringify(columnToOptionsMap)};
     const columnDateTypeMap = ${JSON.stringify(columnDateTypeMap)};
     worksheetData.push(['No.', ...exportColumns]);
@@ -4146,10 +4632,25 @@ const handleDownloadExcel = async () => {
       headerRowIndex++; // Add blank row
     }
     
+    // Grouped merge support (from exportConfig)
+    const groupedInfo = exportConfig?.groupedInfo ?? null;
+    const columnTitleIndices = exportConfig?.columnTitleIndices ?? [];
+    const columnTitleIndexToExportIndex = {};
+    columnTitleIndices.forEach((ti, ei) => {
+      if (ti >= 0) columnTitleIndexToExportIndex[ti] = ei;
+    });
+    
     // Add data rows
     dataToExport.forEach((item, index) => {
       const row = [(index + 1).toString()];
-      exportColumns.forEach((col) => {
+      exportColumns.forEach((col, colIdx) => {
+        // For grouped columns with rowspan 0, use empty (merged with cell above)
+        const colTitleIdx = columnTitleIndices[colIdx];
+        const grp = groupedInfo?.[index]?.[colTitleIdx];
+        if (grp && grp.rowspan === 0) {
+          row.push('');
+          return;
+        }
         // Check if this column has a lookup (dropdown/radio/checkbox/listbox)
         const options = columnOptionsLookup[col];
         // Check if this column is a date/datetime column
@@ -4206,6 +4707,32 @@ const handleDownloadExcel = async () => {
     exportColumns.forEach((col, index) => {
       worksheet.getColumn(index + 2).width = 20; // Data columns
     });
+    
+    // Apply merged cells for grouped columns
+    if (groupedInfo && columnTitleIndices.length > 0) {
+      const firstDataRowExcel = headerRowIndex + 2; // 1-based Excel row
+      for (let ri = 0; ri < dataToExport.length; ri++) {
+        const grpRow = groupedInfo[ri];
+        if (!grpRow) continue;
+        for (const [colTitleIdxStr, info] of Object.entries(grpRow)) {
+          const colTitleIdx = parseInt(colTitleIdxStr, 10);
+          if (!info || info.rowspan <= 1) continue;
+          const exportColIdx = columnTitleIndexToExportIndex[colTitleIdx];
+          if (exportColIdx == null) continue;
+          const excelCol = exportColIdx + 2; // +1 for 1-based, +1 for No. column
+          const startRow = firstDataRowExcel + ri;
+          const endRow = startRow + info.rowspan - 1;
+          worksheet.mergeCells(startRow, excelCol, endRow, excelCol);
+          // Center merged cell vertically
+          const cell = worksheet.getCell(startRow, excelCol);
+          if (cell.alignment) {
+            cell.alignment.vertical = 'middle';
+          } else {
+            cell.alignment = { vertical: 'middle' };
+          }
+        }
+      }
+    }
     
     // Generate Excel file and download
     const fileName = \`${pageTitle.replace(/\s+/g, '_')}_\${new Date().toISOString().split('T')[0]}.xlsx\`;
@@ -4538,6 +5065,9 @@ const handleAdd = () => {
 
 // Delete function
 const handleDelete = async (item) => {
+  const messageText = "Are you sure? Do you want to delete this record?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: \`Do you want to delete this record?\`,
@@ -4548,6 +5078,8 @@ const handleDelete = async (item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
@@ -4633,13 +5165,20 @@ const handleSave${pageName.charAt(0).toUpperCase() + pageName.slice(1)} = async 
     }
 
     if (response.data.value?.statusCode === 200 || response.data.value?.statusCode === 201) {
+      const successMessage = isEditMode.value ? "Success. " + pageNameForLog + " updated successfully" : "Success. " + pageNameForLog + " is created successfully";
       $swal.fire({
         title: "Success",
-        text: isEditMode.value ? "Record updated successfully" : "Record created successfully",
+        text: successMessage,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
+
+      if (isEditMode.value) {
+        await logUpdateSuccess(successMessage, pageNameForLog + " updated");
+      } else {
+        await logCreateSuccess(successMessage, pageNameForLog + " created");
+      }
       
       // Refresh data from API
       await fetchData();
@@ -4723,6 +5262,12 @@ const ${handlerName} = () => {
 
 // Initialize on mount
 onMounted(() => {
+  const kerisiApiKey = route.query?.kerisiApiKey;
+  if (kerisiApiKey) {
+    const kerisiExportSlug = route.path.split("/").filter(Boolean).pop() || "export";
+    window.location.href = \`/api/kerisi-export/\${kerisiExportSlug}?kerisiApiKey=\${encodeURIComponent(kerisiApiKey)}\`;
+    return;
+  }
 ${hasSqlBasedDropdowns ? "  fetchDropdownOptions();\n  " : ""}fetchData();
 });
 </script>`;
@@ -4736,9 +5281,18 @@ ${hasSqlBasedDropdowns ? "  fetchDropdownOptions();\n  " : ""}fetchData();
 function generateTemplateSection(page, components, componentItems, dropdownOptionsMap = {}, pageId = null) {
   // Sort components by order
   const sortedComponents = [...components].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const hasDatatable = sortedComponents.some((c) => c.type === "datatable");
 
   let template = `<template>
   <div class="space-y-6">
+    ${hasDatatable ? `<input
+      ref="templateFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden"
+      @change="onTemplateFileChange"
+    />
+    ` : ""}
     <LayoutsBreadcrumb />`;
 
   // Generate Top Filter if exists
@@ -4764,31 +5318,34 @@ function generateTemplateSection(page, components, componentItems, dropdownOptio
     template += generateButtonSection(buttonComponent, componentItems);
   });
 
-  // Generate Smart Filter button and datatable
+  // Generate main content in ascending Order: datatable and form-inline components in sorted order
   const datatableComponent = sortedComponents.find((c) => c.type === "datatable");
-  if (datatableComponent) {
-    const componentData = datatableComponent.componentData
-      ? JSON.parse(datatableComponent.componentData)
-      : {};
-    const filterType = componentData.dt_filter || "none";
-    const pageName = page.pageTitle
-      .toLowerCase()
-      .replace(/\s+/g, "")
-      .replace(/[^a-z0-9]/g, "");
-    
-    // Parse queryMapping to get field mapping for slot names
-    const queryMapping = datatableComponent.queryMapping || "";
-    const tableInfo = parseQueryMapping(queryMapping);
+  const pageName = page.pageTitle
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9]/g, "");
 
-    // Find popup modal component to get component items for lookup fields
-    const popupModalComponent = sortedComponents.find((c) => c.type === "form_PopupModal");
-    // Use popup modal component items if available, otherwise use all component items
-    const itemsForLookup = popupModalComponent 
-      ? componentItems.filter((ci) => ci.componentId === popupModalComponent.id)
-      : componentItems;
+  const isFormInlineComponent = (c) => {
+    if (c.type === "datatable" || c.type === "form_PopupModal" || c.type === "form_SmartFilter" || c.type === "form_TopFilter") return false;
+    if (c.type === "Button" || c.type === "button") return false;
+    return componentItems.some((ci) => ci.componentId === c.id && ci.type);
+  };
 
-      template += generateDatatableSection(datatableComponent, componentData, filterType, pageName, tableInfo, itemsForLookup, dropdownOptionsMap, pageId);
-  }
+  sortedComponents.forEach((comp) => {
+    if (comp.type === "datatable") {
+      const componentData = comp.componentData ? JSON.parse(comp.componentData) : {};
+      const filterType = componentData.dt_filter || "none";
+      const queryMapping = comp.queryMapping || "";
+      const tableInfo = parseQueryMapping(queryMapping);
+      const popupModalComponent = sortedComponents.find((c) => c.type === "form_PopupModal");
+      const itemsForLookup = popupModalComponent
+        ? componentItems.filter((ci) => ci.componentId === popupModalComponent.id)
+        : componentItems;
+      template += generateDatatableSection(comp, componentData, filterType, pageName, tableInfo, itemsForLookup, dropdownOptionsMap, pageId);
+    } else if (isFormInlineComponent(comp)) {
+      template += generateFormOnlyInlineSection(comp, componentItems, pageName, dropdownOptionsMap);
+    }
+  });
 
   // Generate Smart Filter Modal
   const smartFilterComponent = sortedComponents.find((c) => c.type === "form_SmartFilter");
@@ -4797,15 +5354,13 @@ function generateTemplateSection(page, components, componentItems, dropdownOptio
       ? JSON.parse(datatableComponent.componentData)
       : {};
     if (componentData.dt_filter === "smart" || componentData.dt_filter === "Smart") {
-      // Parse queryMapping to get field mapping for Smart Filter
       const queryMapping = datatableComponent.queryMapping || "";
       const tableInfo = parseQueryMapping(queryMapping);
       template += generateSmartFilterModal(smartFilterComponent, componentItems, dropdownOptionsMap, componentData, tableInfo);
     }
   }
 
-  // Generate Form Modal
-  // Check if form_PopupModal component exists - use it if available, otherwise use datatable component
+  // Generate Form Modal (with datatable: from popup settings; without datatable: form-only page)
   const popupModalComponent = sortedComponents.find((c) => c.type === "form_PopupModal");
   if (datatableComponent) {
     const componentData = datatableComponent.componentData
@@ -4816,14 +5371,50 @@ function generateTemplateSection(page, components, componentItems, dropdownOptio
       componentData.dt_popup_edit ||
       componentData.dt_popup_view
     ) {
-      const pageName = page.pageTitle
-        .toLowerCase()
-        .replace(/\s+/g, "")
-        .replace(/[^a-z0-9]/g, "");
-      // Use form_PopupModal component if it exists, otherwise use datatable component
       const componentToUse = popupModalComponent || datatableComponent;
       template += generateFormModal(componentToUse, componentItems, componentData, pageName, dropdownOptionsMap);
     }
+  }
+
+  if (hasDatatable) {
+    template += `
+    <!-- Generate API Modal -->
+    <rs-modal
+      v-model="showGenerateApiModal"
+      title="Generate API"
+      size="md"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Output Type</label>
+            <FormKit
+              v-model="apiOutputType"
+              type="select"
+              :options="[
+                { label: 'JSON', value: 'JSON' },
+                { label: 'PDF', value: 'PDF' },
+                { label: 'CSV', value: 'CSV' },
+                { label: 'EXCEL', value: 'EXCEL' },
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            A unique API key will be generated. Use the URL to access data in the selected format. JSON and PDF display in browser; CSV and Excel download.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <rs-button variant="secondary" @click="handleCloseGenerateApiModal">Cancel</rs-button>
+          <rs-button variant="primary" :disabled="generateApiLoading" @click="handleGenerateApiProceed">
+            {{ generateApiLoading ? 'Generating...' : 'Proceed' }}
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
+  `;
   }
 
   template += `
@@ -4831,6 +5422,37 @@ function generateTemplateSection(page, components, componentItems, dropdownOptio
 </template>
 
 <style scoped>
+/* Compact radio/checkbox: horizontal layout, less spacing */
+.compact-radio-checkbox :deep(ul),
+.compact-radio-checkbox :deep([class*="options"]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0 0;
+}
+.compact-radio-checkbox :deep(li) {
+  margin: 0;
+  padding: 0;
+}
+.compact-radio-checkbox :deep(label) {
+  margin-bottom: 0;
+}
+/* Text format from component item cssClass (format-uppercase, format-initcap, format-lowercase) */
+.format-uppercase :deep(input),
+.format-uppercase :deep(textarea) {
+  text-transform: uppercase;
+}
+.format-lowercase :deep(input),
+.format-lowercase :deep(textarea) {
+  text-transform: lowercase;
+}
+.format-initcap :deep(input),
+.format-initcap :deep(textarea) {
+  text-transform: capitalize;
+}
 /* Hide default table header since we're using custom header */
 ${datatableComponent ? (() => {
   const pageName = page.pageTitle
@@ -4933,6 +5555,10 @@ function generateTopFilterSection(component, componentItems, dropdownOptionsMap 
       return;
     }
     
+    // Hide when Visible checkbox is unchecked
+    const isVisible = item.visible !== 0 && item.visible !== "0" && item.visible !== false;
+    const hiddenClass = !isVisible ? " d-none" : "";
+    
     const isSelectType = formKitType === "select";
     const isVSelectType = formKitType === "v-select";
     
@@ -4943,7 +5569,7 @@ function generateTopFilterSection(component, componentItems, dropdownOptionsMap 
     
     // Handle v-select (searchable dropdown) separately
     if (isVSelectType) {
-      section += `          <div>
+      section += `          <div${hiddenClass ? ` class="d-none"` : ""}>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${(item.title || item.name).replace(/"/g, '&quot;')}</label>
             <v-select
               v-model="topFilter.${fieldName}"
@@ -4958,7 +5584,7 @@ function generateTopFilterSection(component, componentItems, dropdownOptionsMap 
 `;
     } else if (isSelectType) {
       // For select fields, add empty option for reset
-      section += `          <div>
+      section += `          <div${hiddenClass ? ` class="d-none"` : ""}>
             <FormKit
               v-model="topFilter.${fieldName}"
               type="${filterInputType}"
@@ -4970,7 +5596,7 @@ function generateTopFilterSection(component, componentItems, dropdownOptionsMap 
 `;
     } else {
       // Text/other field with clear button
-      section += `          <div>
+      section += `          <div${hiddenClass ? ` class="d-none"` : ""}>
             <FormKit
               v-model="topFilter.${fieldName}"
               type="${filterInputType}"
@@ -5090,9 +5716,20 @@ function generateDatatableSection(component, componentData, filterType, pageName
   // This ensures the field names match what the API returns (aliased fields)
   // Check if 'Action' already exists in dt_bi to avoid duplicate columns
   const hasActionColumn = columns.some(col => col && col.trim().toLowerCase() === 'action');
+  
+  // Build a set of hidden column indices (columns with 'd-none' in their class)
+  const hiddenColumnIndices = new Set();
+  columns.forEach((col, idx) => {
+    const colClass = (classes[idx] || "").trim().toLowerCase();
+    if (colClass.split(/\s+/).includes("d-none")) {
+      hiddenColumnIndices.add(idx);
+    }
+  });
+  
   const filteredColumns = columns.filter((col, idx) => {
     const key = keys[idx] || "";
-    return col && col.trim() !== "" && !col.includes("<input") && key.toLowerCase() !== 'no';
+    // Exclude: empty columns, input columns, 'no' key, and hidden (d-none) columns
+    return col && col.trim() !== "" && !col.includes("<input") && key.toLowerCase() !== 'no' && !hiddenColumnIndices.has(idx);
   });
   // Only add 'Action' if not already defined by user in dt_bi
   const tableFields = hasActionColumn 
@@ -5103,6 +5740,9 @@ function generateDatatableSection(component, componentData, filterType, pageName
   // Use column headers (aliases) for slot names to match the field array and API response
   let slotTemplates = "";
   columns.forEach((col, index) => {
+    // Skip hidden columns (d-none in Column Class)
+    if (hiddenColumnIndices.has(index)) return;
+    
     if (col && col.trim() !== "" && !col.includes("<input")) {
       const key = keys[index] || "";
       const columnHeader = col.trim(); // This is the alias (e.g., "Code", "Description", "Status")
@@ -5114,6 +5754,9 @@ function generateDatatableSection(component, componentData, filterType, pageName
       const isValidIdentifier = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(columnHeader);
       const dataField = isValidIdentifier ? columnHeader : `[${JSON.stringify(columnHeader)}]`;
       const jsCode = js[index] || "";
+      const colClass = (classes[index] || "").trim();
+      // Remove d-none from colClass (already handled by hiding column) to get display classes only
+      const displayClasses = colClass.split(/\s+/).filter(c => c && c.toLowerCase() !== "d-none").join(" ");
       
       // Skip generating generic slot for 'no' and 'Action' columns; Action is handled separately
       if (key.toLowerCase() !== 'no' && key.toLowerCase() !== 'action' && columnHeaderLower !== 'action') {
@@ -5144,13 +5787,13 @@ function generateDatatableSection(component, componentData, filterType, pageName
             
             // Generate helper function call to get label
             slotTemplates += `              <template v-slot:${slotName}="data">
-                {{ getLookupLabel(${optionsVarName}, data.value${dataField.startsWith('[') ? dataField : '.' + dataField}) }}
+                ${displayClasses ? `<div class="${displayClasses}">` : ''}{{ getLookupLabel(${optionsVarName}, data.value${dataField.startsWith('[') ? dataField : '.' + dataField}) }}${displayClasses ? `</div>` : ''}
               </template>
 `;
           } else {
             // Lookup info not found, fall back to value
             slotTemplates += `              <template v-slot:${slotName}="data">
-                {{ data.value${dataField.startsWith('[') ? dataField : '.' + dataField} }}
+                ${displayClasses ? `<div class="${displayClasses}">` : ''}{{ data.value${dataField.startsWith('[') ? dataField : '.' + dataField} }}${displayClasses ? `</div>` : ''}
               </template>
 `;
           }
@@ -5169,7 +5812,7 @@ function generateDatatableSection(component, componentData, filterType, pageName
             return `data.value.${field}`;
           });
           slotTemplates += `              <template v-slot:${slotName}="data">
-                <span v-html="${jsCodeFixed.replace(/return\s+/g, "")}"></span>
+                ${displayClasses ? `<div class="${displayClasses}">` : ''}<span v-html="${jsCodeFixed.replace(/return\s+/g, "")}"></span>${displayClasses ? `</div>` : ''}
               </template>
 `;
         } else {
@@ -5215,19 +5858,19 @@ function generateDatatableSection(component, componentData, filterType, pageName
           if (isDateTimeColumn || itemIsDateTime) {
             // DateTime column - format with time
             slotTemplates += `              <template v-slot:${slotName}="data">
-                {{ formatDateTime(data.value${dataField.startsWith('[') ? dataField : '.' + dataField}) }}
+                ${displayClasses ? `<div class="${displayClasses}">` : ''}{{ formatDateTime(data.value${dataField.startsWith('[') ? dataField : '.' + dataField}) }}${displayClasses ? `</div>` : ''}
               </template>
 `;
           } else if (isDateOnlyColumn || itemIsDateOnly) {
             // Date only column - format without time
             slotTemplates += `              <template v-slot:${slotName}="data">
-                {{ formatDate(data.value${dataField.startsWith('[') ? dataField : '.' + dataField}) }}
+                ${displayClasses ? `<div class="${displayClasses}">` : ''}{{ formatDate(data.value${dataField.startsWith('[') ? dataField : '.' + dataField}) }}${displayClasses ? `</div>` : ''}
               </template>
 `;
           } else {
             // Regular column - no formatting
             slotTemplates += `              <template v-slot:${slotName}="data">
-                {{ data.value${dataField.startsWith('[') ? dataField : '.' + dataField} }}
+                ${displayClasses ? `<div class="${displayClasses}">` : ''}{{ data.value${dataField.startsWith('[') ? dataField : '.' + dataField} }}${displayClasses ? `</div>` : ''}
               </template>
 `;
           }
@@ -5289,20 +5932,110 @@ function generateDatatableSection(component, componentData, filterType, pageName
 `;
   }
 
-  let section = `
+  // Check visibility configuration
+  const isVisible = !(parseInt(component.visible) === 0 || component.visible === false);
+
+  // Check collapse configuration
+  const collapseEnable = parseInt(component.collapseEnable) === 1;
+  const collapseByDefault = parseInt(component.collapseByDefault) === 1;
+
+  // Parse CSS classes from component cssClass field (space-separated)
+  const cssClassStr = (component.cssClass || "").trim();
+  const cssClasses = cssClassStr ? cssClassStr.split(/\s+/) : [];
+  
+  // Map known CSS class names to rs-table options
+  const hasStriped = cssClasses.includes("stripe") || cssClasses.includes("striped");
+  const hasBordered = cssClasses.includes("bordered") || cssClasses.includes("border");
+  const hasBorderless = cssClasses.includes("borderless");
+  const hasHover = cssClasses.includes("hover");
+  
+  // Collect remaining CSS classes (not mapped to rs-table options) for the wrapper
+  const mappedClasses = ["stripe", "striped", "bordered", "border", "borderless", "hover"];
+  const extraCssClasses = cssClasses.filter(c => !mappedClasses.includes(c));
+
+  // Check pagination configuration
+  const showPagination = componentData.dt_bPaginate === true || componentData.dt_bPaginate === "true";
+
+  let section = '';
+  
+  // Wrap entire datatable in v-show if not visible
+  if (!isVisible) {
+    section += `
+    <div v-show="false">`;
+  }
+
+  if (collapseEnable) {
+    // Use direct HTML card (not rs-card component) so v-show works on card-body
+    section += `
+    <!-- Datatable -->
+    <div class="card">
+      <header class="card-header cursor-pointer select-none" @click="isTableCollapsed = !isTableCollapsed">
+        <div class="flex justify-between items-center">
+          <div class="text-lg font-semibold">${component.title || component.name}</div>
+          <div class="flex items-center gap-2" @click.stop>
+            <rs-dropdown
+              variant="secondary-text"
+              size="sm"
+              :hideChevron="true"
+              position="bottom"
+              textAlign="right"
+              itemSize="11rem"
+              class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+            >
+              <template #title>
+                <Icon name="mdi:dots-vertical" size="1rem" />
+              </template>
+              <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+              <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+              <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+              <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+              <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+            </rs-dropdown>
+            <Icon
+              :name="isTableCollapsed ? 'material-symbols:keyboard-arrow-down' : 'material-symbols:keyboard-arrow-up'"
+              class="text-gray-500 dark:text-gray-400 transition-transform duration-200"
+              size="24"
+            />
+          </div>
+        </div>
+      </header>
+      <div v-show="!isTableCollapsed" class="card-body">
+        <div class="space-y-4">`;
+  } else {
+    section += `
     <!-- Datatable -->
     <rs-card>
       <template #header>
         <div class="flex justify-between items-center">
           <div class="text-lg font-semibold">${component.title || component.name}</div>
+          <rs-dropdown
+            variant="secondary-text"
+            size="sm"
+            :hideChevron="true"
+            position="bottom"
+            textAlign="right"
+            itemSize="11rem"
+            class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+          >
+            <template #title>
+              <Icon name="mdi:dots-vertical" size="1rem" />
+            </template>
+            <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+            <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+            <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+            <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+            <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+          </rs-dropdown>
         </div>
       </template>
       <template #body>
-        <div class="space-y-4">
+        <div class="space-y-4">`;
+  }
+  section += `
           <!-- Custom Table Header: Display on left, Search on right -->
           <div class="flex justify-between items-center gap-4 mb-4">
             <!-- Display on Left -->
-            <div class="flex items-center gap-2">
+${showPagination ? `            <div class="flex items-center gap-2">
               <label class="text-sm font-medium text-gray-700 dark:text-gray-300" for="${pageName}_pageSize">Display:</label>
               <FormKit
                 id="${pageName}_pageSize"
@@ -5317,7 +6050,7 @@ function generateDatatableSection(component, componentData, filterType, pageName
                 ]"
                 outer-class="mb-0"
               />
-            </div>
+            </div>` : `            <div></div>`}
 
             <!-- Search on Right -->
             <div class="flex items-center gap-2">
@@ -5360,21 +6093,24 @@ function generateDatatableSection(component, componentData, filterType, pageName
           </div>
 
           <!-- Table with built-in search and pagination -->
-          <div class="${pageName}-table-wrapper">
+          <div class="${pageName}-table-wrapper${extraCssClasses.length > 0 ? ' ' + extraCssClasses.join(' ') : ''}">
             <div v-if="loading" class="text-center py-8">
               <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               <p class="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
             </div>
             <rs-table
               v-else
-              :key="\`${pageName}-table-\${searchKeyword || 'all'}-\${pageSize}\`"
+              ref="datatableRef"
+              :exportConfigRef="exportConfigRef"
+              :key="\`${pageName}-table${(componentData.dt_column_movable === true || componentData.dt_column_movable === "true" || componentData.dt_column_hide_show === true || componentData.dt_column_hide_show === "true" || componentData.dt_column_grouping_list === true || componentData.dt_column_grouping_list === "true") ? '' : `-\${searchKeyword || 'all'}${showPagination ? `-\${pageSize}` : ''}`}\`"
               :data="filtered${pageName.charAt(0).toUpperCase() + pageName.slice(1)}List"
               :field='${JSON.stringify(tableFields)}'
               :options="{
                 variant: 'primary',
-                striped: false,
-                bordered: false,
-                borderless: true,
+                striped: ${hasStriped ? 'true' : 'false'},
+                bordered: ${hasBordered ? 'true' : 'false'},
+                borderless: ${hasBorderless ? 'true' : (!hasBordered ? 'true' : 'false')},
+                ${hasHover ? "hover: true," : ''}
               }"
               :optionsAdvanced="{
                 sortable: true,
@@ -5383,7 +6119,15 @@ function generateDatatableSection(component, componentData, filterType, pageName
                 outsideBorder: false,
               }"
               advanced
-              :pageSize="pageSize"
+              :pageSize="${showPagination ? 'pageSize' : '99999'}"
+              :hideTableSearch="true"
+              :hideTablePageSize="true"
+              ${!showPagination ? ':hideTableFooter="true"' : ''}
+              ${freezeLeft > 0 ? `:freezeLeft="${freezeLeft}"` : ''}
+              ${freezeRight > 0 ? `:freezeRight="${freezeRight}"` : ''}
+              ${componentData.dt_column_movable === true || componentData.dt_column_movable === "true" ? ':columnMovable="true"' : ''}
+              ${componentData.dt_column_hide_show === true || componentData.dt_column_hide_show === "true" ? ':columnHideShow="true"' : ''}
+              :columnGroupingList="isGrouped"
             >
               <template v-slot:no="data">
                 {{ data.value.no }}
@@ -5417,8 +6161,10 @@ ${slotTemplates}${actionSlot}
             </div>
           </div>
         </div>
-      </template>
-    </rs-card>
+${collapseEnable ? `      </div>
+    </div>` : `      </template>
+    </rs-card>`}
+${!isVisible ? `    </div>` : ''}
 `;
 
   return section;
@@ -5541,6 +6287,41 @@ function mapToFormKitType(componentType) {
   return componentType || "text";
 }
 
+// Returns { formatType, formatClass } if cssClass contains format-uppercase, format-initcap, or format-lowercase
+function getTextFormatFromCssClass(cssClass) {
+  if (!cssClass || typeof cssClass !== "string") return null;
+  const c = cssClass.toLowerCase();
+  if (c.includes("format-uppercase")) return { formatType: "uppercase", formatClass: "format-uppercase" };
+  if (c.includes("format-initcap")) return { formatType: "initcap", formatClass: "format-initcap" };
+  if (c.includes("format-lowercase")) return { formatType: "lowercase", formatClass: "format-lowercase" };
+  return null;
+}
+
+// Helper: detect complex SQL patterns that Prisma cannot express — use raw SQL instead
+function requiresRawSqlLookup(lookupQuery) {
+  const COMPLEX_PATTERNS = [
+    /\bCONCAT_WS\s*\(/i,
+    /\bCONCAT\s*\(/i,
+    /\bEXISTS\s*\(/i,
+    /\bNOT\s+EXISTS\s*\(/i,
+    /\bCASE\s+WHEN\b/i,
+    /\bCOALESCE\s*\(/i,
+    /\bIFNULL\s*\(/i,
+    /\bNULLIF\s*\(/i,
+    /\bSUBSTRING\s*\(/i,
+    /\bSUBSTR\s*\(/i,
+    /\bGROUP_CONCAT\s*\(/i,
+    /\bCOUNT\s*\(/i,
+    /\bSUM\s*\(/i,
+    /\bAVG\s*\(/i,
+    /\bMIN\s*\(/i,
+    /\bMAX\s*\(/i,
+    /\bIN\s*\(\s*SELECT\b/i,
+    /\bSELECT\b[\s\S]*\bFROM\b[\s\S]*\bWHERE\b[\s\S]*\bSELECT\b/i, // subquery in WHERE
+  ];
+  return COMPLEX_PATTERNS.some((p) => p.test(lookupQuery));
+}
+
 // Helper function to parse dropdown lookup query SQL to extract label and value fields
 function parseLookupQueryFields(lookupQuery) {
   // Remove DISTINCT if present (we'll handle it but don't need it for field extraction)
@@ -5616,10 +6397,16 @@ function parseLookupQueryFields(lookupQuery) {
   const parsedFields = fields.map(f => parseField(f));
   
   // Check if any field has explicit 'label' or 'value' alias
-  const labelField = parsedFields.find(p => p.alias.toLowerCase() === 'label');
-  const valueField = parsedFields.find(p => p.alias.toLowerCase() === 'value');
+  // Also recognize common alias patterns:
+  //   Value aliases: value, id, flc_id, code
+  //   Label aliases: label, text, flc_name, name, description, desc
+  const VALUE_ALIAS_PATTERNS = ['value', 'id', 'flc_id', 'code'];
+  const LABEL_ALIAS_PATTERNS = ['label', 'text', 'flc_name', 'name', 'description', 'desc'];
   
-  // If explicit aliases found, use them
+  const valueField = parsedFields.find(p => VALUE_ALIAS_PATTERNS.includes(p.alias.toLowerCase()));
+  const labelField = parsedFields.find(p => LABEL_ALIAS_PATTERNS.includes(p.alias.toLowerCase()));
+  
+  // If both value and label aliases found, use them
   if (labelField && valueField) {
     return {
       labelField: labelField.fieldName,
@@ -5640,6 +6427,84 @@ function parseLookupQueryFields(lookupQuery) {
     labelField: secondParsed.fieldName,
     labelAlias: secondParsed.alias,
   };
+}
+
+// Parse static-value SQL queries (FROM dual, UNION ALL with literals) into a JSON array
+// Examples:
+//   SELECT '3' flc_id, '3' flc_name FROM dual
+//   SELECT 'ACTIVE' flc_id, 'ACTIVE' flc_name FROM dual UNION SELECT 'INACTIVE' flc_id, 'INACTIVE' flc_name FROM dual
+//   select 1 flc_id, 'ACTIVE' flc_name union all select 0 flc_id, 'INACTIVE' flc_name
+function parseStaticLookupQuery(query) {
+  const results = [];
+  
+  // Split by UNION (ALL) to get individual SELECT statements
+  const selectStatements = query.split(/\bUNION\s+(ALL\s+)?/i).filter(s => s && /SELECT/i.test(s));
+  
+  for (const stmt of selectStatements) {
+    // Extract the SELECT clause (everything between SELECT and FROM, or end of string if no FROM)
+    const selectMatch = stmt.match(/SELECT\s+(.+?)(?:\s+FROM\b|$)/is);
+    if (!selectMatch) continue;
+    
+    const selectClause = selectMatch[1].trim();
+    // Split fields by comma, being careful about commas inside quotes
+    const fields = [];
+    let current = '';
+    let inQuote = false;
+    let quoteChar = '';
+    for (let i = 0; i < selectClause.length; i++) {
+      const ch = selectClause[i];
+      if (!inQuote && (ch === "'" || ch === '"')) {
+        inQuote = true;
+        quoteChar = ch;
+        current += ch;
+      } else if (inQuote && ch === quoteChar) {
+        inQuote = false;
+        current += ch;
+      } else if (!inQuote && ch === ',') {
+        fields.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    if (current.trim()) fields.push(current.trim());
+    
+    const row = {};
+    let valueField = null;
+    let labelField = null;
+    
+    for (const field of fields) {
+      // Match patterns like: 'ACTIVE' flc_id, '3' flc_name, 1 flc_id, 'value' AS alias
+      const literalMatch = field.match(/^['"]?([^'"]*?)['"]?\s+(?:AS\s+)?(\w+)$/i);
+      if (literalMatch) {
+        const value = literalMatch[1];
+        const alias = literalMatch[2];
+        row[alias] = value;
+        
+        // Track which field is value (first) and which is label (second)
+        if (!valueField) {
+          valueField = alias;
+        } else if (!labelField) {
+          labelField = alias;
+        }
+      }
+    }
+    
+    if (Object.keys(row).length > 0) {
+      // Build the standard label/value format
+      const entry = {
+        label: row[labelField] || row[valueField] || Object.values(row)[1] || Object.values(row)[0] || "",
+        value: row[valueField] || Object.values(row)[0] || "",
+      };
+      // Also include the original aliases
+      Object.keys(row).forEach(key => {
+        entry[key] = row[key];
+      });
+      results.push(entry);
+    }
+  }
+  
+  return results;
 }
 
 function generateSmartFilterModal(component, componentItems, dropdownOptionsMap = {}, componentData = {}, tableInfo = null) {
@@ -5721,6 +6586,9 @@ function generateSmartFilterModal(component, componentItems, dropdownOptionsMap 
     const isVSelectType = formKitType === "v-select";
     
     const fieldId = 'smartFilter_' + fieldName;
+    // Hide when Visible checkbox is unchecked
+    const isVisible = item.visible !== 0 && item.visible !== "0" && item.visible !== false;
+    const hiddenClass = !isVisible ? " d-none" : "";
     
     // Determine the filter input type based on field type
     // For filters, complex types (rich text editors, code editors, media) use text input
@@ -5729,7 +6597,7 @@ function generateSmartFilterModal(component, componentItems, dropdownOptionsMap 
     
     // Handle v-select (searchable dropdown) separately
     if (isVSelectType) {
-      modal += `            <div class="flex items-center gap-4">
+      modal += `            <div class="flex items-center gap-4${hiddenClass}">
               <label class="w-32 text-sm font-medium" for="${fieldId}">${item.title || item.name}:</label>
               <div class="flex-1">
                 <v-select
@@ -5746,7 +6614,7 @@ function generateSmartFilterModal(component, componentItems, dropdownOptionsMap 
 `;
     } else if (filterInputType === "textarea") {
       // Textarea filter - use text input instead
-      modal += `            <div class="flex items-center gap-4">
+      modal += `            <div class="flex items-center gap-4${hiddenClass}">
               <label class="w-32 text-sm font-medium" for="${fieldId}">${item.title || item.name}:</label>
               <div class="flex-1">
                 <FormKit
@@ -5760,7 +6628,7 @@ function generateSmartFilterModal(component, componentItems, dropdownOptionsMap 
             </div>
 `;
     } else {
-      modal += `            <div class="flex items-center gap-4">
+      modal += `            <div class="flex items-center gap-4${hiddenClass}">
               <label class="w-32 text-sm font-medium" for="${fieldId}">${item.title || item.name}:</label>
               <div class="flex-1${isSelectType ? " relative" : ""}">
                 <FormKit
@@ -5807,6 +6675,197 @@ function generateSmartFilterModal(component, componentItems, dropdownOptionsMap 
   return modal;
 }
 
+// Form-only page: form on page in a card (like New Purchase Order) - no Add button, no modal
+function generateFormOnlyInlineSection(component, componentItems, pageName, dropdownOptionsMap = {}) {
+  const formItems = componentItems.filter((ci) => {
+    if (!ci.componentId || ci.componentId !== component.id || !ci.type) return false;
+    if (ci.type === "checkbox") return ci.defaultValue != null && String(ci.defaultValue).trim() !== "";
+    return true;
+  });
+  formItems.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const capitalizedPageName = pageName.charAt(0).toUpperCase() + pageName.slice(1);
+  const pageTitle = component.title || component.name;
+
+  let section = `
+    <rs-card>
+      <template #header>
+        <div class="text-lg font-semibold">${pageTitle}</div>
+      </template>
+      <template #body>
+        <FormKit type="form" :actions="false" @submit="handleSave${capitalizedPageName}">
+          <div class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+`;
+
+  const isRequiredField = (attr) => attr && String(attr).toLowerCase().includes("required");
+
+  formItems.forEach((item) => {
+    if (!item.name || !item.name.trim()) return;
+    const fieldName = item.name.replace(/[^a-zA-Z0-9]/g, "_");
+    let formKitType = mapToFormKitType(item.type);
+    if (formKitType === null) return;
+    if (["rich-text-editor", "quill", "ckeditor", "tinymce", "summernote"].includes(formKitType)) formKitType = "textarea";
+    if (formKitType === "image") formKitType = "file"; // FormKit has no type="image", use file with accept
+    const isRequired = isRequiredField(item.additionalAttribute);
+    const validationAttr = isRequired ? ' validation="required" validation-visibility="dirty"' : "";
+    const label = (item.title || item.name).replace(/"/g, '\\"');
+    const isSelectType = formKitType === "select" || formKitType === "v-select";
+    const isRadioOrCheckbox = formKitType === "radio" || formKitType === "checkbox";
+    const lookupKey = findDropdownOptionsKey(dropdownOptionsMap, item.name) || fieldName;
+    const hasLookupSelect = isSelectType && item.lookup_queryMapping && dropdownOptionsMap[lookupKey];
+    const hasLookupRadioCheckbox = isRadioOrCheckbox && item.lookup_queryMapping && dropdownOptionsMap[lookupKey];
+    const optionsRef = (hasLookupSelect || hasLookupRadioCheckbox) ? dropdownOptionsMap[lookupKey].optionsVarName : "[]";
+    const colSpan = formKitType === "textarea" ? ' class="md:col-span-2"' : "";
+    // Hide when Visible checkbox is unchecked
+    const isVisible = item.visible !== 0 && item.visible !== "0" && item.visible !== false;
+    const hiddenClass = !isVisible ? " d-none" : "";
+    // Any item type with CSS class containing 'force-one-column' spans full row (textfield, textarea, dropdown, checkbox, radio, etc.)
+    const hasForceOneColumn = (item.cssClass || "").toLowerCase().includes("force-one-column");
+    const oneColumnWrapperClass = (hasForceOneColumn ? "md:col-span-2 " + (item.cssClass || "").trim().replace(/\s+/g, " ").replace(/"/g, "") : "") + hiddenClass;
+    const selectWrapperClass = (isSelectType && hasLookupSelect && hasForceOneColumn) ? oneColumnWrapperClass : "";
+    const selectWrapAttr = (selectWrapperClass || hiddenClass) ? ` class="${(selectWrapperClass + hiddenClass).trim()}"` : "";
+
+    if (isSelectType && hasLookupSelect) {
+      section += `              <div${selectWrapAttr}>
+                <FormKit
+                  v-model="${pageName}Form.${fieldName}"
+                  type="select"
+                  label="${label}"
+                  :options="${optionsRef}"
+                  :disabled="isViewMode"
+                  placeholder="Select ${label}"
+                  outer-class="mb-0"${validationAttr}
+                />
+              </div>
+`;
+    } else if (formKitType === "textarea") {
+      const textareaFormat = getTextFormatFromCssClass(item.cssClass);
+      const textareaOuterClass = "mb-0" + (textareaFormat ? " " + textareaFormat.formatClass : "");
+      const textareaBlurAttr = textareaFormat ? ` @blur="handleFormatBlur('${fieldName}', '${textareaFormat.formatType}')"` : "";
+      const textareaWrapperClass = "md:col-span-2" + (hasForceOneColumn && (item.cssClass || "").trim() ? " " + (item.cssClass || "").trim().replace(/\s+/g, " ").replace(/"/g, "") : "") + hiddenClass;
+      section += `              <div class="${textareaWrapperClass}">
+                <FormKit
+                  v-model="${pageName}Form.${fieldName}"
+                  type="textarea"
+                  label="${label}"
+                  :disabled="isViewMode"
+                  placeholder="Enter ${label}"
+                  outer-class="${textareaOuterClass}"
+                  rows="4"${validationAttr}${textareaBlurAttr}
+                />
+              </div>
+`;
+    } else if (formKitType === "radio") {
+      // Compact native radio group; radio-inline = one column (side by side), force-one-column = full row; both can add cssClass
+      const hasRadioInline = (item.cssClass || "").toLowerCase().includes("radio-inline");
+      const radioSpanClass = hasRadioInline ? "md:col-span-1" : "md:col-span-2";
+      const requiredStarRadio = isRequired ? ' <span class="text-red-500">*</span>' : '';
+      const radioCssSuffix = (hasForceOneColumn || hasRadioInline) && (item.cssClass || "").trim() ? " " + (item.cssClass || "").trim().replace(/\s+/g, " ").replace(/"/g, "") : "";
+      const radioWrapperClass = radioSpanClass + " flex flex-wrap items-center gap-x-4 gap-y-1" + radioCssSuffix + hiddenClass;
+      section += `              <div class="${radioWrapperClass}">
+                <span class="text-sm font-medium">${label}${requiredStarRadio}</span>
+                <template v-for="(opt, idx) in ${optionsRef}" :key="idx">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" v-model="${pageName}Form.${fieldName}" :value="opt.value" :disabled="isViewMode" class="w-4 h-4 rounded-full border-gray-300 text-primary focus:ring-primary cursor-pointer" />
+                    <span>{{ opt.label }}</span>
+                  </label>
+                </template>
+              </div>
+`;
+    } else if (formKitType === "checkbox") {
+      // Checkbox: compact native input; true-value from Default Value; support force-one-column via cssClass
+      const requiredStar = isRequired ? ' <span class="text-red-500">*</span>' : '';
+      const dv = (item.defaultValue != null && String(item.defaultValue).trim() !== "") ? String(item.defaultValue).trim() : "true";
+      const trueValueEscaped = dv.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const checkboxWrapperClass = "md:col-span-2 flex items-center gap-2" + (hasForceOneColumn && (item.cssClass || "").trim() ? " " + (item.cssClass || "").trim().replace(/\s+/g, " ").replace(/"/g, "") : "") + hiddenClass;
+      section += `              <div class="${checkboxWrapperClass}">
+                <label class="text-sm font-medium">${label}${requiredStar}</label>
+                <input
+                  type="checkbox"
+                  v-model="${pageName}Form.${fieldName}"
+                  :true-value="'${trueValueEscaped}'"
+                  :false-value="''"
+                  :disabled="isViewMode"
+                  class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+`;
+    } else if (formKitType === "file" && item.type === "image") {
+      section += `              <div${hiddenClass ? ` class="d-none"` : ""}>
+                <FormKit
+                v-model="${pageName}Form.${fieldName}"
+                type="file"
+                label="${label}"
+                :disabled="isViewMode"
+                accept="image/*"
+                outer-class="mb-0"${validationAttr}
+              />
+              </div>
+`;
+    } else if (formKitType === "mask") {
+      // Masked input: use Default Value as mask pattern if set (e.g. ###-##-####); otherwise unmasked text
+      const maskPattern = (item.defaultValue != null && String(item.defaultValue).trim() !== "") ? String(item.defaultValue).trim().replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+      const maskAttr = maskPattern ? ` :mask="'${maskPattern}'"` : "";
+      section += `              <div${hiddenClass ? ` class="d-none"` : ""}>
+                <FormKit
+                v-model="${pageName}Form.${fieldName}"
+                type="mask"
+                label="${label}"
+                :disabled="isViewMode"
+                placeholder="Enter ${label}"${maskAttr}
+                outer-class="mb-0"${validationAttr}
+              />
+              </div>
+`;
+    } else {
+      const textFormat = (formKitType === "text" || item.type === "textfield") ? getTextFormatFromCssClass(item.cssClass) : null;
+      const textOuterClass = "mb-0" + (textFormat ? " " + textFormat.formatClass : "");
+      const textBlurAttr = textFormat ? ` @blur="handleFormatBlur('${fieldName}', '${textFormat.formatType}')"` : "";
+      if (hasForceOneColumn && oneColumnWrapperClass) {
+        section += `              <div class="${oneColumnWrapperClass}">
+                <FormKit
+                v-model="${pageName}Form.${fieldName}"
+                type="${formKitType}"
+                label="${label}"
+                :disabled="isViewMode"
+                placeholder="Enter ${label}"
+                outer-class="${textOuterClass}"${validationAttr}${textBlurAttr}
+                />
+              </div>
+`;
+      } else {
+        section += `              <div${hiddenClass ? ` class="d-none"` : ""}>
+                <FormKit
+                v-model="${pageName}Form.${fieldName}"
+                type="${formKitType}"
+                label="${label}"
+                :disabled="isViewMode"
+                placeholder="Enter ${label}"
+                outer-class="${textOuterClass}"${validationAttr}${textBlurAttr}
+              />
+              </div>
+`;
+      }
+    }
+  });
+
+  section += `            </div>
+          </div>
+          <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <rs-button variant="danger" size="sm" @click="handleCancel${capitalizedPageName}">
+              Cancel
+            </rs-button>
+            <rs-button v-if="!isViewMode" variant="primary" size="sm" type="submit">
+              Save
+            </rs-button>
+          </div>
+        </FormKit>
+      </template>
+    </rs-card>
+`;
+  return section;
+}
+
 function generateFormModal(component, componentItems, componentData, pageName, dropdownOptionsMap = {}) {
   const popupModal = {
     view: componentData.dt_popup_view || false,
@@ -5814,8 +6873,12 @@ function generateFormModal(component, componentItems, componentData, pageName, d
     add: componentData.dt_popup_add || false,
   };
 
-  // Get form fields from component items (preferred) or use dt_key fields
-  const formItems = componentItems.filter((ci) => ci.componentId === component.id && ci.type);
+  // Get form fields from component items (preferred) or use dt_key fields; checkbox only if Default Value is set
+  const formItems = componentItems.filter((ci) => {
+    if (!ci.componentId || ci.componentId !== component.id || !ci.type) return false;
+    if (ci.type === "checkbox") return ci.defaultValue != null && String(ci.defaultValue).trim() !== "";
+    return true;
+  });
   // Sort form items by order ascending (fallback to 0 if order is missing)
   formItems.sort((a, b) => {
     const orderA = a.order ?? 0;
@@ -5888,11 +6951,18 @@ function generateFormModal(component, componentItems, componentData, pageName, d
         const requiredStar = isRequired ? '<span class="text-red-500">*</span>' : '';
         const validationAttr = isRequired ? '\n                  validation="required"\n                  validation-visibility="dirty"' : '';
         
+        // Apply item cssClass (e.g. d-none) and Visible checkbox to wrapper - hide when visible is unchecked
+        const modalItemCss = (item.cssClass || "").trim().replace(/"/g, "") || "";
+        const isVisible = item.visible !== 0 && item.visible !== "0" && item.visible !== false;
+        const combinedCss = [modalItemCss, !isVisible ? "d-none" : ""].filter(Boolean).join(" ").trim();
+        const modalRowClass = "flex items-center gap-2" + (combinedCss ? " " + combinedCss : "");
+        const modalRowClassStart = "flex items-start gap-2" + (combinedCss ? " " + combinedCss : "");
+        
         // Skip items that should not be rendered as FormKit inputs (label, heading, divider, etc.)
         if (formKitType === null) {
           // For label type, render as display-only text
           if (item.type === "label" || item.type === "heading") {
-            modal += `            <div class="flex items-center gap-2">
+            modal += `            <div class="${modalRowClass}">
               <label class="w-32 text-xs font-medium">${item.title || item.name}:</label>
               <div class="flex-1">
                 <span class="text-sm text-gray-600 dark:text-gray-400">{{ ${pageName}Form.${fieldName} || '-' }}</span>
@@ -5905,8 +6975,9 @@ function generateFormModal(component, componentItems, componentData, pageName, d
         
         const isSelectType = formKitType === "select";
         const isVSelectType = formKitType === "v-select";
+        const isRadioOrCheckboxType = formKitType === "radio" || formKitType === "checkbox";
         const lookupKey = findDropdownOptionsKey(dropdownOptionsMap, item.name) || fieldName;
-        const hasLookup = (isSelectType || isVSelectType) && item.lookup_queryMapping && dropdownOptionsMap[lookupKey];
+        const hasLookup = (isSelectType || isVSelectType || isRadioOrCheckboxType) && item.lookup_queryMapping && dropdownOptionsMap[lookupKey];
         const optionsRef = hasLookup ? dropdownOptionsMap[lookupKey].optionsVarName : "[]";
         
         // Check if this is an audit date field that should always be disabled in Add/Edit modes
@@ -5918,7 +6989,7 @@ function generateFormModal(component, componentItems, componentData, pageName, d
         // Handle different field types
         if (isVSelectType) {
           // v-select (searchable dropdown)
-          modal += `            <div class="flex items-center gap-2">
+          modal += `            <div class="${modalRowClass}">
               <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <v-select
@@ -5935,8 +7006,11 @@ function generateFormModal(component, componentItems, componentData, pageName, d
             </div>
 `;
         } else if (formKitType === "textarea") {
-          // Textarea
-          modal += `            <div class="flex items-start gap-2">
+          // Textarea (with optional format-uppercase, format-initcap, format-lowercase from cssClass)
+          const modalTextareaFormat = getTextFormatFromCssClass(item.cssClass);
+          const modalTextareaOuterClass = "mb-0" + (modalTextareaFormat ? " " + modalTextareaFormat.formatClass : "");
+          const modalTextareaBlur = modalTextareaFormat ? ` @blur="handleFormatBlur('${fieldName}', '${modalTextareaFormat.formatType}')"` : "";
+          modal += `            <div class="${modalRowClassStart}">
               <label class="w-32 text-xs font-medium pt-2" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -5946,14 +7020,15 @@ function generateFormModal(component, componentItems, componentData, pageName, d
                   :disabled="${disabledCondition}"
                   placeholder="Enter ${item.title || item.name}"
                   rows="3"
-                  outer-class="mb-0"${validationAttr}
+                  outer-class="${modalTextareaOuterClass}"${modalTextareaBlur}
+                  ${validationAttr}
                 />
               </div>
             </div>
 `;
         } else if (["quill", "ckeditor", "tinymce", "summernote", "rich-text-editor"].includes(formKitType)) {
           // Rich text editors - render as textarea with note (actual editor component would need to be implemented)
-          modal += `            <div class="flex items-start gap-2">
+          modal += `            <div class="${modalRowClassStart}">
               <label class="w-32 text-xs font-medium pt-2" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -5970,7 +7045,7 @@ function generateFormModal(component, componentItems, componentData, pageName, d
 `;
         } else if (["codemirror", "ace"].includes(formKitType)) {
           // Code editors - render as textarea (actual editor component would need to be implemented)
-          modal += `            <div class="flex items-start gap-2">
+          modal += `            <div class="${modalRowClassStart}">
               <label class="w-32 text-xs font-medium pt-2" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -5985,9 +7060,42 @@ function generateFormModal(component, componentItems, componentData, pageName, d
               </div>
             </div>
 `;
+        } else if (formKitType === "checkbox") {
+          // Checkbox: compact native input; true-value from Default Value (required for checkbox to be processed)
+          const dvModal = (item.defaultValue != null && String(item.defaultValue).trim() !== "") ? String(item.defaultValue).trim() : "true";
+          const trueValueEscapedModal = dvModal.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+          modal += `            <div class="${modalRowClass}">
+              <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
+              <div class="flex-1">
+                <input
+                  id="${fieldId}"
+                  type="checkbox"
+                  v-model="${pageName}Form.${fieldName}"
+                  :true-value="'${trueValueEscapedModal}'"
+                  :false-value="''"
+                  :disabled="${disabledCondition}"
+                  class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+            </div>
+`;
+        } else if (formKitType === "radio") {
+          // Compact native radio group (with or without lookup)
+          modal += `            <div class="${modalRowClass}">
+              <label class="w-32 text-xs font-medium">${item.title || item.name}${requiredStar}:</label>
+              <div class="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <template v-for="(opt, idx) in ${optionsRef}" :key="idx">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" :id="\`${fieldId}_\${idx}\`" v-model="${pageName}Form.${fieldName}" :value="opt.value" :disabled="${disabledCondition}" class="w-4 h-4 rounded-full border-gray-300 text-primary focus:ring-primary cursor-pointer" />
+                    <span>{{ opt.label }}</span>
+                  </label>
+                </template>
+              </div>
+            </div>
+`;
         } else if (["dropzone", "dropzonemini"].includes(formKitType)) {
           // Dropzone file upload - render as file input
-          modal += `            <div class="flex items-center gap-2">
+          modal += `            <div class="${modalRowClass}">
               <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -6002,7 +7110,7 @@ function generateFormModal(component, componentItems, componentData, pageName, d
 `;
         } else if (formKitType === "mask") {
           // Masked input - render as text with pattern (actual mask would need FormKit Pro or custom)
-          modal += `            <div class="flex items-center gap-2">
+          modal += `            <div class="${modalRowClass}">
               <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -6018,7 +7126,7 @@ function generateFormModal(component, componentItems, componentData, pageName, d
 `;
         } else if (["html", "iframe"].includes(formKitType)) {
           // HTML/iframe - render as textarea for content
-          modal += `            <div class="flex items-start gap-2">
+          modal += `            <div class="${modalRowClassStart}">
               <label class="w-32 text-xs font-medium pt-2" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -6035,7 +7143,7 @@ function generateFormModal(component, componentItems, componentData, pageName, d
 `;
         } else if (formKitType === "link") {
           // Link - render as URL input
-          modal += `            <div class="flex items-center gap-2">
+          modal += `            <div class="${modalRowClass}">
               <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -6051,7 +7159,7 @@ function generateFormModal(component, componentItems, componentData, pageName, d
 `;
         } else if (["image", "video", "audio"].includes(formKitType)) {
           // Media types - render as file input
-          modal += `            <div class="flex items-center gap-2">
+          modal += `            <div class="${modalRowClass}">
               <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -6067,7 +7175,7 @@ function generateFormModal(component, componentItems, componentData, pageName, d
 `;
         } else if (formKitType === "map") {
           // Map - render as text for coordinates or address
-          modal += `            <div class="flex items-center gap-2">
+          modal += `            <div class="${modalRowClass}">
               <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
@@ -6083,17 +7191,23 @@ function generateFormModal(component, componentItems, componentData, pageName, d
 `;
         } else {
           // Standard FormKit types (text, select, date, checkbox, radio, file, etc.)
-          modal += `            <div class="flex items-center gap-2">
+          const isRadioOrCheckboxModal = formKitType === "radio" || formKitType === "checkbox";
+          const wrapClass = isRadioOrCheckboxModal ? (modalRowClass + " compact-radio-checkbox") : modalRowClass;
+          const modalTextFormat = (formKitType === "text" || item.type === "textfield") ? getTextFormatFromCssClass(item.cssClass) : null;
+          const outerClassStandard = isRadioOrCheckboxModal ? "mb-0 formkit-radio-compact" : ("mb-0" + (modalTextFormat ? " " + modalTextFormat.formatClass : ""));
+          const modalTextBlur = modalTextFormat ? ` @blur="handleFormatBlur('${fieldName}', '${modalTextFormat.formatType}')"` : "";
+          modal += `            <div class="${wrapClass}">
               <label class="w-32 text-xs font-medium" for="${fieldId}">${item.title || item.name}${requiredStar}:</label>
               <div class="flex-1">
                 <FormKit
                   id="${fieldId}"
                   v-model="${pageName}Form.${fieldName}"
                   type="${formKitType}"
-                  ${isSelectType ? `:options="${optionsRef}"` : ""}
+                  ${(isSelectType || isRadioOrCheckboxModal) ? `:options="${optionsRef}"` : ""}
                   :disabled="${disabledCondition}"
-                  placeholder="${isSelectType ? `Select ${item.title || item.name}` : `Enter ${item.title || item.name}`}"
-                  outer-class="mb-0"${validationAttr}
+                  placeholder="${isSelectType ? `Select ${item.title || item.name}` : (isRadioOrCheckboxModal ? "" : `Enter ${item.title || item.name}`)}"
+                  outer-class="${outerClassStandard}"${modalTextBlur}
+                  ${validationAttr}
                 />
               </div>
             </div>

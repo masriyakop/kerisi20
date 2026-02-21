@@ -3,7 +3,6 @@ import prisma from "~/server/utils/prisma";
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    console.log("[API] Received query:", JSON.stringify(query, null, 2));
     
     // Determine which level to fetch
     // Priority: explicit level parameter > level_1/level2/etc > dt_accountactvty
@@ -23,8 +22,6 @@ export default defineEventHandler(async (event) => {
     } else if (query.dt_accountactvty) {
       level = 0;
     }
-    
-    console.log("[API] Determined level:", level, "from query:", JSON.stringify(query));
     
     if (level === null) {
       return {
@@ -81,8 +78,6 @@ export default defineEventHandler(async (event) => {
         return a.lde_id - b.lde_id;
       });
 
-      console.log(`Found ${activities.length} account activities for ACCOUNT_ACTIVITY`);
-
       const formattedActivities = activities.map((item, index) => ({
         no: index + 1,
         lde_value: item.lde_value || '',
@@ -112,9 +107,7 @@ export default defineEventHandler(async (event) => {
       const activityValue = query.activity || query.parent;
       if (activityValue) {
         where.acm_acct_activity = activityValue;
-        console.log(`[Level 1] Filtering by acm_acct_activity = '${activityValue}'`);
       } else {
-        console.log(`[Level 1] No activity filter provided - query.activity: ${query.activity}, query.parent: ${query.parent}`);
         return {
           statusCode: 400,
           message: "Activity code is required for Account Class",
@@ -124,17 +117,13 @@ export default defineEventHandler(async (event) => {
       // Levels 2-5: Filter by acm_acct_parent = '?'
       if (query.parent) {
         where.acm_acct_parent = query.parent;
-        console.log(`[Level ${level}] Filtering by acm_acct_parent = '${query.parent}'`);
       } else {
-        console.log(`[Level ${level}] No parent filter provided`);
         return {
           statusCode: 400,
           message: `Parent code is required for level ${level}`,
         };
       }
     }
-    
-    console.log(`[Level ${level}] WHERE clause:`, JSON.stringify(where, null, 2));
     
     // Search filter - MySQL uses contains (LIKE %term%)
     if (query.search && query.search.trim() !== '') {
@@ -164,9 +153,6 @@ export default defineEventHandler(async (event) => {
       where.acm_acct_status = statusValue;
     }
 
-    // Query account_main table with explicit field selection matching SQL query
-    console.log(`[Level ${level}] Executing Prisma query with WHERE:`, JSON.stringify(where, null, 2));
-    
     const accounts = await prisma.account_main.findMany({
       where,
       select: {
@@ -184,20 +170,6 @@ export default defineEventHandler(async (event) => {
         acm_acct_code: 'asc',
       },
     });
-
-    console.log(`[Level ${level}] Prisma query completed. Found ${accounts.length} records`);
-    if (accounts.length > 0) {
-      console.log(`[Level ${level}] First record sample:`, {
-        acm_acct_code: accounts[0].acm_acct_code,
-        acm_acct_desc: accounts[0].acm_acct_desc,
-        acm_acct_activity: accounts[0].acm_acct_activity,
-        acm_acct_level: accounts[0].acm_acct_level,
-        acm_acct_status: accounts[0].acm_acct_status,
-        createddate: accounts[0].createddate,
-      });
-    } else {
-      console.log(`[Level ${level}] No records found. WHERE clause was:`, JSON.stringify(where, null, 2));
-    }
 
     // Format the response to match SQL query fields
     const formattedData = accounts.map((item, index) => {

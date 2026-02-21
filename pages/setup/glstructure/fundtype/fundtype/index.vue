@@ -25,9 +25,21 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
+const pageName = "Fund Type";
+const moduleName = "Setup";
+const pageBreadcrumbText = "Dashboard > Setup > Glstructure > Fundtype > Fund Type";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName,
+  moduleName,
+  pageBreadcrumbText,
+});
+
 // Table data
 const fundtypeList = ref([]);
 const loading = ref(false);
+
+// Collapse state for datatable
+const isTableCollapsed = ref(true);
 
 // Search and filter state
 const searchKeyword = ref("");
@@ -917,9 +929,12 @@ const handleAdd = () => {
 
 // Delete function
 const handleDelete = async (item) => {
+  const messageText = `Do you want to delete this record?`;
+  const logId = await logDeleteConfirmationPrompt(`Are you sure? ${messageText}`);
+
   const result = await $swal.fire({
     title: "Are you sure?",
-    text: `Do you want to delete this record?`,
+    text: messageText,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#d33",
@@ -927,6 +942,8 @@ const handleDelete = async (item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
@@ -992,13 +1009,22 @@ const handleSaveFundtype = async () => {
     }
 
     if (response.data.value?.statusCode === 200 || response.data.value?.statusCode === 201) {
+      const successMessage = isEditMode.value
+        ? "Success. Fund Type updated successfully"
+        : "Success. Fund Type is created successfully";
       $swal.fire({
         title: "Success",
-        text: isEditMode.value ? "Record updated successfully" : "Record created successfully",
+        text: successMessage,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
+
+      if (isEditMode.value) {
+        await logUpdateSuccess(successMessage, "Fund Type updated");
+      } else {
+        await logCreateSuccess(successMessage, "Fund Type created");
+      }
       
       // Refresh data from API
       await fetchData();
@@ -1044,13 +1070,18 @@ fetchData();
   <div class="space-y-6">
     <LayoutsBreadcrumb />
     <!-- Datatable -->
-    <rs-card>
-      <template #header>
+    <div class="card">
+      <header class="card-header cursor-pointer select-none" @click="isTableCollapsed = !isTableCollapsed">
         <div class="flex justify-between items-center">
           <div class="text-lg font-semibold">List of Fund Type</div>
+          <Icon
+            :name="isTableCollapsed ? 'material-symbols:keyboard-arrow-down' : 'material-symbols:keyboard-arrow-up'"
+            class="text-gray-500 dark:text-gray-400 transition-transform duration-200"
+            size="24"
+          />
         </div>
-      </template>
-      <template #body>
+      </header>
+      <div v-show="!isTableCollapsed" class="card-body">
         <div class="space-y-4">
           <!-- Custom Table Header: Display on left, Search on right -->
           <div class="flex justify-between items-center gap-4 mb-4">
@@ -1225,8 +1256,8 @@ fetchData();
             </div>
           </div>
         </div>
-      </template>
-    </rs-card>
+      </div>
+    </div>
 
     <!-- Smart Filter Modal -->
     <rs-modal
@@ -1457,6 +1488,11 @@ fetchData();
 .fundtype-table-wrapper :deep(.rs-table thead th:last-child),
 .fundtype-table-wrapper :deep(.rs-table tbody td:last-child) {
   text-align: left !important;
+}
+
+/* Collapse datatable - hide card body when collapsed */
+.datatable-collapsed :deep(.card-body) {
+  display: none;
 }
 </style>
 

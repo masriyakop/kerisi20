@@ -9,6 +9,10 @@ export default defineNuxtConfig({
       secretKey: process.env.NUXT_METABASE_SECRET_KEY || "c98a5b005450e699b6d420f46e0062912ac75268716f1298c11d8bb11c291eb0",
       siteUrl: process.env.NUXT_METABASE_SITE_URL || "http://mb.sena.my",
     },
+    ollama: {
+      url: process.env.OLLAMA_URL || "http://localhost:11434",
+      model: process.env.OLLAMA_MODEL || "deepseek-v3.1:671b-cloud",
+    },
   },
   modules: [
     "@nuxtjs/tailwindcss",
@@ -549,6 +553,16 @@ export default defineNuxtConfig({
       security: {
         xssValidator: false,
         requestSizeLimiter: false,
+      },
+    },
+    "/api/message-log": {
+      security: {
+        xssValidator: false,
+      },
+    },
+    "/api/message-log/**": {
+      security: {
+        xssValidator: false,
       },
     },
   },

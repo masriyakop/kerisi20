@@ -1,24 +1,30 @@
-/* RS Card Component */
+/* RS Card Component - Monochrome Compact */
 .card {
-  @apply mb-6;
+  @apply mb-4;
   background-color: rgb(var(--bg-2));
-  border-radius: var(--rounded-box);
-  box-shadow: var(--box-shadow);
+  border-radius: var(--rounded-box, 0.25rem);
+  box-shadow: var(--box-shadow, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+  border: 1px solid rgb(var(--border-color));
 }
 
 .card .card-header {
-  @apply text-xl px-6 py-4 font-medium;
-  line-height: 1.5;
+  @apply px-4 py-3 font-semibold;
+  font-size: var(--font-size-base, 0.8125rem);
+  line-height: 1.4;
   border-bottom: 1px solid rgb(var(--border-color));
+  color: rgb(var(--text-color));
 }
 
 .card .card-body {
-  @apply px-6 py-5;
-  line-height: 1.6;
+  @apply px-4 py-3;
+  font-size: var(--font-size-sm, 0.75rem);
+  line-height: 1.5;
 }
 
 .card .card-footer {
-  @apply px-6 py-4;
-  line-height: 1.5;
+  @apply px-4 py-3;
+  font-size: var(--font-size-sm, 0.75rem);
+  line-height: 1.4;
   border-top: 1px solid rgb(var(--border-color));
+  background-color: rgb(var(--bg-1));
 }

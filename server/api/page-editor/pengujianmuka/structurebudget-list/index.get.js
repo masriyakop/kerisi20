@@ -161,8 +161,8 @@ export default defineEventHandler(async (event) => {
       if (!mapped.sbg_budget_id && item.sbg_budget_id) {
         mapped.sbg_budget_id = item.sbg_budget_id;
       }
-      // Add id field for CRUD operations (use primary key value)
       mapped.id = item.sbg_budget_id;
+      
       return mapped;
     });
 

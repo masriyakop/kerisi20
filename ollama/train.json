@@ -1,0 +1,5 @@
+{"instruction":"Generate Prisma ORM query to get all active users","input":"","output":"const users = await prisma.user.findMany({ where: { status: 1 } });"}
+{"instruction":"Count total orders for each month in 2025","input":"","output":"const orders = await prisma.purchase_order_master.groupBy({ by: ['month'], _count: { id: true }, where: { year: 2025 } });"}
+{"instruction":"Get list of fund types where status is active","input":"","output":"const funds = await prisma.fund_type.findMany({ where: { fty_status: 1 }, select: { fty_fund_type: true, fty_fund_desc: true } });"}
+{"instruction":"Generate report of total sales by cost centre","input":"","output":"const result = await prisma.sales.groupBy({ by: ['ccr_costcentre'], _sum: { amount: true } });"}
+{"instruction":"Get distinct fund types with label format type - description","input":"","output":"const result = await prisma.fund_type.findMany({ distinct: ['fty_fund_type'], select: { fty_fund_type: true, fty_fund_desc: true } }).then(data => data.map(f => ({ value: f.fty_fund_type, label: `${f.fty_fund_type} - ${f.fty_fund_desc}` })));"}

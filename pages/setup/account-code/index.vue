@@ -13,6 +13,15 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
+const pageName = "Account Code";
+const moduleName = "Setup";
+const pageBreadcrumbText = "Dashboard > Setup > GL Structure Setup > Account Code";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName,
+  moduleName,
+  pageBreadcrumbText,
+});
+
 // Data for 6 cascading datatables
 const activityList = ref([]);
 const classList = ref([]);
@@ -849,13 +858,16 @@ const handleSave = async (level) => {
       });
 
       if (data.value?.statusCode === 200 || data.value?.statusCode === 201) {
+        const successMessage = isEditMode.value.activity ? "Success. Account activity updated successfully" : "Success. Account activity is created successfully";
         $swal.fire({
           title: "Success",
-          text: isEditMode.value.activity ? "Account activity updated successfully" : "Account activity created successfully",
+          text: successMessage,
           icon: "success",
           timer: 2000,
           showConfirmButton: false,
         });
+        if (isEditMode.value.activity) await logUpdateSuccess(successMessage, "Account activity updated");
+        else await logCreateSuccess(successMessage, "Account activity created");
         showModals.value.activity = false;
         isEditMode.value.activity = false;
         activityForm.value = {
@@ -896,13 +908,16 @@ const handleSave = async (level) => {
       });
 
       if (data.value?.statusCode === 200 || data.value?.statusCode === 201) {
+        const successMessage = isEditMode.value[level] ? "Success. Account updated successfully" : "Success. Account is created successfully";
         $swal.fire({
           title: "Success",
-          text: isEditMode.value[level] ? "Account updated successfully" : "Account created successfully",
+          text: successMessage,
           icon: "success",
           timer: 2000,
           showConfirmButton: false,
         });
+        if (isEditMode.value[level]) await logUpdateSuccess(successMessage, "Account updated");
+        else await logCreateSuccess(successMessage, "Account created");
         showModals.value[level] = false;
         isEditMode.value[level] = false;
         accountForm.value = {
@@ -977,6 +992,9 @@ const handleCancel = (level) => {
 };
 
 const handleDelete = async (level, item) => {
+  const messageText = "Are you sure? Do you want to delete this record?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: `Do you want to delete this record?`,
@@ -987,6 +1005,8 @@ const handleDelete = async (level, item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {

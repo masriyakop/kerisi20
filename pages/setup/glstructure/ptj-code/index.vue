@@ -13,11 +13,30 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
-// Data for 4 cascading datatables
-const level1List = ref([]);
-const level2List = ref([]);
-const level3List = ref([]);
-const level4List = ref([]);
+const pageName = "PTJ Code";
+const moduleName = "Setup";
+const pageBreadcrumbText = "Dashboard > Setup > GL Structure Setup > PTJ Code";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName,
+  moduleName,
+  pageBreadcrumbText,
+});
+
+// Column definitions (4 cascading levels)
+const columns = ref([
+  { key: 'level1', title: 'PTJ LEVEL 1', level: 1 },
+  { key: 'level2', title: 'PTJ LEVEL 2', level: 2 },
+  { key: 'level3', title: 'PTJ LEVEL 3', level: 3 },
+  { key: 'level4', title: 'PTJ LEVEL 4', level: 4 },
+]);
+
+// Data for each level
+const listData = ref({
+  level1: [],
+  level2: [],
+  level3: [],
+  level4: [],
+});
 
 // Loading states
 const loading = ref({
@@ -27,7 +46,24 @@ const loading = ref({
   level4: false,
 });
 
-// Search keywords for each datatable
+// Selected items for cascade
+const selected = ref({
+  level1: null,
+  level2: null,
+  level3: null,
+  level4: null,
+});
+
+// Visible columns (level1 always visible, others appear on selection)
+const visibleColumns = computed(() => {
+  const visible = ['level1'];
+  if (selected.value.level1) visible.push('level2');
+  if (selected.value.level2) visible.push('level3');
+  if (selected.value.level3) visible.push('level4');
+  return visible;
+});
+
+// Search keywords per column
 const searchKeywords = ref({
   level1: "",
   level2: "",
@@ -35,67 +71,19 @@ const searchKeywords = ref({
   level4: "",
 });
 
-// Page sizes
-const pageSizes = ref({
-  level1: 5,
-  level2: 5,
-  level3: 5,
-  level4: 5,
-});
+// Modals
+const showModal = ref(false);
+const modalLevel = ref('level1');
+const isEditMode = ref(false);
+const isViewMode = ref(false);
 
-// Selected items for cascade filtering
-const selectedLevel1 = ref(null);
-const selectedLevel2 = ref(null);
-const selectedLevel3 = ref(null);
+// Status options
+const statusOptions = ref([
+  { label: "ACTIVE", value: "ACTIVE" },
+  { label: "INACTIVE", value: "INACTIVE" },
+]);
 
-// Smart Filter modals
-const showSmartFilter = ref({
-  level1: false,
-  level2: false,
-  level3: false,
-  level4: false,
-});
-
-// Smart Filter values
-const smartFilters = ref({
-  level1: { oun_status: "" },
-  level2: { oun_status: "" },
-  level3: { oun_status: "" },
-  level4: { oun_status: "" },
-});
-
-// Store original filter values for reset
-const originalFilters = ref({
-  level1: { oun_status: "" },
-  level2: { oun_status: "" },
-  level3: { oun_status: "" },
-  level4: { oun_status: "" },
-});
-
-// Add/Edit modals
-const showModals = ref({
-  level1: false,
-  level2: false,
-  level3: false,
-  level4: false,
-});
-
-// Edit/View mode flags
-const isEditMode = ref({
-  level1: false,
-  level2: false,
-  level3: false,
-  level4: false,
-});
-
-const isViewMode = ref({
-  level1: false,
-  level2: false,
-  level3: false,
-  level4: false,
-});
-
-// Form data
+// Form data (shared across all levels since PTJ schema is uniform)
 const ptjForm = ref({
   oun_id: null,
   oun_code: "",
@@ -119,90 +107,90 @@ const ptjForm = ref({
   cny_country_code: "",
 });
 
-// Status options
-const statusOptions = ref([
-  { label: "ACTIVE", value: "ACTIVE" },
-  { label: "INACTIVE", value: "INACTIVE" },
-]);
+// Column browser container ref for auto-scroll
+const columnBrowser = ref(null);
 
-// Fetch PTJ Code Level 1
-const fetchLevel1 = async () => {
-  try {
-    loading.value.level1 = true;
-    const query = {
-      level: 1,
-    };
-    if (searchKeywords.value.level1) {
-      query.search = searchKeywords.value.level1;
-    }
-    if (smartFilters.value.level1.oun_status) {
-      query.smartFilter_oun_status = smartFilters.value.level1.oun_status;
-    }
-    
-    const { data } = await useFetch("/api/setup/ptj-code", {
-      method: "GET",
-      query,
-      initialCache: false,
-    });
+// Resizable column widths
+const columnWidths = ref({
+  level1: 280,
+  level2: 280,
+  level3: 280,
+  level4: 280,
+});
 
-    if (data.value?.statusCode === 200) {
-      level1List.value = (data.value.data || []).map((item) => ({
-        no: item.no,
-        'PTJ Code': item['PTJ Code'] || '',
-        'PTJ Desc (Malay)': item['PTJ Desc (Malay)'] || '',
-        'Country': item.Country || '',
-        'Status': item.Status || '',
-        'Action': '',
-        // Keep original data
-        oun_id: item.oun_id,
-        oun_code: item.oun_code,
-        oun_desc: item.oun_desc,
-        oun_desc_bi: item.oun_desc_bi,
-        org_code: item.org_code,
-        org_desc: item.org_desc,
-        oun_address: item.oun_address,
-        oun_state: item.oun_state,
-        st_staff_id_head: item.st_staff_id_head,
-        oun_tel_no: item.oun_tel_no,
-        oun_fax_no: item.oun_fax_no,
-        oun_code_parent: item.oun_code_parent,
-        oun_level: item.oun_level,
-        oun_status: item.oun_status,
-        st_staff_id_superior: item.st_staff_id_superior,
-        tanggung_start_date: item.tanggung_start_date,
-        tanggung_end_date: item.tanggung_end_date,
-        oun_shortname: item.oun_shortname,
-        oun_region: item.oun_region,
-        cny_country_code: item.cny_country_code,
-      }));
-    }
-  } catch (error) {
-    console.error("Error fetching level 1:", error);
-  } finally {
-    loading.value.level1 = false;
-  }
+const resizing = ref({ active: false, colKey: '', startX: 0, startWidth: 0 });
+
+const startResize = (e, colKey) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizing.value = {
+    active: true,
+    colKey,
+    startX: e.clientX,
+    startWidth: columnWidths.value[colKey],
+  };
+
+  const onMouseMove = (moveEvent) => {
+    if (!resizing.value.active) return;
+    const diff = moveEvent.clientX - resizing.value.startX;
+    const newWidth = Math.max(120, Math.min(600, resizing.value.startWidth + diff));
+    columnWidths.value[resizing.value.colKey] = newWidth;
+  };
+
+  const onMouseUp = () => {
+    resizing.value.active = false;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
 };
 
-// Fetch PTJ Code Level 2
-const fetchLevel2 = async () => {
-  if (!selectedLevel1.value) {
-    level2List.value = [];
+// Normalize status helper
+const normalizeStatus = (rawStatus) => {
+  if (rawStatus === null || rawStatus === undefined || rawStatus === '') return '';
+  const s = String(rawStatus).toUpperCase();
+  if (s === '1' || s === 'ACTIVE') return 'ACTIVE';
+  if (s === '0' || s === 'INACTIVE') return 'INACTIVE';
+  return String(rawStatus);
+};
+
+// Helper: get display label for an item
+const getItemLabel = (levelKey, item) => {
+  return item.oun_code || item['PTJ Code'] || '';
+};
+
+const getItemDescription = (levelKey, item) => {
+  return item.oun_desc || item['PTJ Desc (Malay)'] || '';
+};
+
+const getItemStatus = (levelKey, item) => {
+  return item.oun_status || '';
+};
+
+const isItemSelected = (levelKey, item) => {
+  const sel = selected.value[levelKey];
+  if (!sel) return false;
+  return sel.oun_code === item.oun_code;
+};
+
+// Generic fetch function for all levels
+const fetchLevel = async (levelKey, levelNum, parentCode) => {
+  if (levelNum > 1 && !parentCode) {
+    listData.value[levelKey] = [];
     return;
   }
-  
   try {
-    loading.value.level2 = true;
-    const query = {
-      level: 2,
-      oun_code_parent: selectedLevel1.value.oun_code,
-    };
-    if (searchKeywords.value.level2) {
-      query.search = searchKeywords.value.level2;
-    }
-    if (smartFilters.value.level2.oun_status) {
-      query.smartFilter_oun_status = smartFilters.value.level2.oun_status;
-    }
-    
+    loading.value[levelKey] = true;
+    const query = { level: levelNum };
+    if (levelNum > 1) query.oun_code_parent = parentCode;
+    if (searchKeywords.value[levelKey]) query.search = searchKeywords.value[levelKey];
+
     const { data } = await useFetch("/api/setup/ptj-code", {
       method: "GET",
       query,
@@ -210,295 +198,124 @@ const fetchLevel2 = async () => {
     });
 
     if (data.value?.statusCode === 200) {
-      level2List.value = (data.value.data || []).map((item) => ({
-        no: item.no,
-        'PTJ Code': item['PTJ Code'] || '',
-        'PTJ Desc (Malay)': item['PTJ Desc (Malay)'] || '',
-        'Code Parent': item['Code Parent'] || '',
-        'Country': item.Country || '',
-        'Status': item.Status || '',
-        'Action': '',
-        // Keep original data
+      listData.value[levelKey] = (data.value.data || []).map((item) => ({
+        ...item,
         oun_id: item.oun_id,
-        oun_code: item.oun_code,
-        oun_desc: item.oun_desc,
-        oun_desc_bi: item.oun_desc_bi,
-        org_code: item.org_code,
-        org_desc: item.org_desc,
-        oun_address: item.oun_address,
-        oun_state: item.oun_state,
-        st_staff_id_head: item.st_staff_id_head,
-        oun_tel_no: item.oun_tel_no,
-        oun_fax_no: item.oun_fax_no,
-        oun_code_parent: item.oun_code_parent,
+        oun_code: item.oun_code || item['PTJ Code'] || '',
+        oun_desc: item.oun_desc || item['PTJ Desc (Malay)'] || '',
+        oun_desc_bi: item.oun_desc_bi || '',
+        org_code: item.org_code || '',
+        org_desc: item.org_desc || '',
+        oun_address: item.oun_address || '',
+        oun_state: item.oun_state || '',
+        st_staff_id_head: item.st_staff_id_head || '',
+        oun_tel_no: item.oun_tel_no || '',
+        oun_fax_no: item.oun_fax_no || '',
+        oun_code_parent: item.oun_code_parent || item['Code Parent'] || '',
         oun_level: item.oun_level,
-        oun_status: item.oun_status,
-        st_staff_id_superior: item.st_staff_id_superior,
-        tanggung_start_date: item.tanggung_start_date,
-        tanggung_end_date: item.tanggung_end_date,
-        oun_shortname: item.oun_shortname,
-        oun_region: item.oun_region,
-        cny_country_code: item.cny_country_code,
+        oun_status: normalizeStatus(item.oun_status ?? item.Status),
+        st_staff_id_superior: item.st_staff_id_superior || '',
+        tanggung_start_date: item.tanggung_start_date || '',
+        tanggung_end_date: item.tanggung_end_date || '',
+        oun_shortname: item.oun_shortname || '',
+        oun_region: item.oun_region || item.Region || '',
+        cny_country_code: item.cny_country_code || item.Country || '',
       }));
     }
   } catch (error) {
-    console.error("Error fetching level 2:", error);
+    console.error(`Error fetching ${levelKey}:`, error);
   } finally {
-    loading.value.level2 = false;
+    loading.value[levelKey] = false;
   }
 };
 
-// Fetch PTJ Code Level 3
-const fetchLevel3 = async () => {
-  if (!selectedLevel2.value) {
-    level3List.value = [];
+// Shorthand fetch functions
+const fetchLevel1 = () => fetchLevel('level1', 1, null);
+const fetchLevel2 = () => fetchLevel('level2', 2, selected.value.level1?.oun_code);
+const fetchLevel3 = () => fetchLevel('level3', 3, selected.value.level2?.oun_code);
+const fetchLevel4 = () => fetchLevel('level4', 4, selected.value.level3?.oun_code);
+
+// Auto-scroll to the right when a new column appears
+const scrollToEnd = () => {
+  nextTick(() => {
+    if (columnBrowser.value) {
+      columnBrowser.value.scrollTo({
+        left: columnBrowser.value.scrollWidth,
+        behavior: 'smooth',
+      });
+    }
+  });
+};
+
+// Clear downstream selections and data
+const clearDownstream = (fromLevel) => {
+  const order = ['level1', 'level2', 'level3', 'level4'];
+  const idx = order.indexOf(fromLevel);
+  for (let i = idx + 1; i < order.length; i++) {
+    selected.value[order[i]] = null;
+    listData.value[order[i]] = [];
+  }
+};
+
+// Handle item click in a column
+const handleItemClick = (levelKey, item) => {
+  // If clicking already selected item, deselect
+  if (isItemSelected(levelKey, item)) {
+    selected.value[levelKey] = null;
+    clearDownstream(levelKey);
     return;
   }
-  
-  try {
-    loading.value.level3 = true;
-    const query = {
-      level: 3,
-      oun_code_parent: selectedLevel2.value.oun_code,
-    };
-    if (searchKeywords.value.level3) {
-      query.search = searchKeywords.value.level3;
-    }
-    if (smartFilters.value.level3.oun_status) {
-      query.smartFilter_oun_status = smartFilters.value.level3.oun_status;
-    }
-    
-    const { data } = await useFetch("/api/setup/ptj-code", {
-      method: "GET",
-      query,
-      initialCache: false,
-    });
 
-    if (data.value?.statusCode === 200) {
-      level3List.value = (data.value.data || []).map((item) => ({
-        no: item.no,
-        'PTJ Code': item['PTJ Code'] || '',
-        'PTJ Desc (Malay)': item['PTJ Desc (Malay)'] || '',
-        'Code Parent': item['Code Parent'] || '',
-        'Region': item.Region || '',
-        'Country': item.Country || '',
-        'Status': item.Status || '',
-        'Action': '',
-        // Keep original data
-        oun_id: item.oun_id,
-        oun_code: item.oun_code,
-        oun_desc: item.oun_desc,
-        oun_desc_bi: item.oun_desc_bi,
-        org_code: item.org_code,
-        org_desc: item.org_desc,
-        oun_address: item.oun_address,
-        oun_state: item.oun_state,
-        st_staff_id_head: item.st_staff_id_head,
-        oun_tel_no: item.oun_tel_no,
-        oun_fax_no: item.oun_fax_no,
-        oun_code_parent: item.oun_code_parent,
-        oun_level: item.oun_level,
-        oun_status: item.oun_status,
-        st_staff_id_superior: item.st_staff_id_superior,
-        tanggung_start_date: item.tanggung_start_date,
-        tanggung_end_date: item.tanggung_end_date,
-        oun_shortname: item.oun_shortname,
-        oun_region: item.oun_region,
-        cny_country_code: item.cny_country_code,
-      }));
-    }
-  } catch (error) {
-    console.error("Error fetching level 3:", error);
-  } finally {
-    loading.value.level3 = false;
-  }
+  selected.value[levelKey] = item;
+  clearDownstream(levelKey);
+
+  // Fetch next level
+  if (levelKey === 'level1') fetchLevel2();
+  else if (levelKey === 'level2') fetchLevel3();
+  else if (levelKey === 'level3') fetchLevel4();
+
+  scrollToEnd();
 };
 
-// Fetch PTJ Code Level 4
-const fetchLevel4 = async () => {
-  if (!selectedLevel3.value) {
-    level4List.value = [];
-    return;
-  }
-  
-  try {
-    loading.value.level4 = true;
-    const query = {
-      level: 4,
-      oun_code_parent: selectedLevel3.value.oun_code,
-    };
-    if (searchKeywords.value.level4) {
-      query.search = searchKeywords.value.level4;
-    }
-    if (smartFilters.value.level4.oun_status) {
-      query.smartFilter_oun_status = smartFilters.value.level4.oun_status;
-    }
-    
-    const { data } = await useFetch("/api/setup/ptj-code", {
-      method: "GET",
-      query,
-      initialCache: false,
-    });
+// Watch search keywords to refetch
+watch(() => searchKeywords.value.level1, () => fetchLevel1());
+watch(() => searchKeywords.value.level2, () => { if (selected.value.level1) fetchLevel2(); });
+watch(() => searchKeywords.value.level3, () => { if (selected.value.level2) fetchLevel3(); });
+watch(() => searchKeywords.value.level4, () => { if (selected.value.level3) fetchLevel4(); });
 
-    if (data.value?.statusCode === 200) {
-      level4List.value = (data.value.data || []).map((item) => ({
-        no: item.no,
-        'PTJ Code': item['PTJ Code'] || '',
-        'PTJ Desc (Malay)': item['PTJ Desc (Malay)'] || '',
-        'Code Parent': item['Code Parent'] || '',
-        'Region': item.Region || '',
-        'Country': item.Country || '',
-        'Status': item.Status || '',
-        'Action': '',
-        // Keep original data
-        oun_id: item.oun_id,
-        oun_code: item.oun_code,
-        oun_desc: item.oun_desc,
-        oun_desc_bi: item.oun_desc_bi,
-        org_code: item.org_code,
-        org_desc: item.org_desc,
-        oun_address: item.oun_address,
-        oun_state: item.oun_state,
-        st_staff_id_head: item.st_staff_id_head,
-        oun_tel_no: item.oun_tel_no,
-        oun_fax_no: item.oun_fax_no,
-        oun_code_parent: item.oun_code_parent,
-        oun_level: item.oun_level,
-        oun_status: item.oun_status,
-        st_staff_id_superior: item.st_staff_id_superior,
-        tanggung_start_date: item.tanggung_start_date,
-        tanggung_end_date: item.tanggung_end_date,
-        oun_shortname: item.oun_shortname,
-        oun_region: item.oun_region,
-        cny_country_code: item.cny_country_code,
-      }));
-    }
-  } catch (error) {
-    console.error("Error fetching level 4:", error);
-  } finally {
-    loading.value.level4 = false;
-  }
+// Modal title
+const modalTitle = computed(() => {
+  const levelNames = {
+    level1: 'PTJ Code Level 1',
+    level2: 'PTJ Code Level 2',
+    level3: 'PTJ Code Level 3',
+    level4: 'PTJ Code Level 4',
+  };
+  const name = levelNames[modalLevel.value] || '';
+  if (isViewMode.value) return `View ${name}`;
+  if (isEditMode.value) return `Edit ${name}`;
+  return `Add ${name}`;
+});
+
+// Helper: determine parent code for a level
+const getParentCode = (levelKey) => {
+  if (levelKey === 'level1') return "";
+  if (levelKey === 'level2') return selected.value.level1?.oun_code || "";
+  if (levelKey === 'level3') return selected.value.level2?.oun_code || "";
+  return selected.value.level3?.oun_code || "";
 };
 
-// Watch for cascade selections
-watch(selectedLevel1, () => {
-  selectedLevel2.value = null;
-  selectedLevel3.value = null;
-  level2List.value = [];
-  level3List.value = [];
-  level4List.value = [];
-  fetchLevel2();
-});
-
-watch(selectedLevel2, () => {
-  selectedLevel3.value = null;
-  level3List.value = [];
-  level4List.value = [];
-  fetchLevel3();
-});
-
-watch(selectedLevel3, () => {
-  level4List.value = [];
-  fetchLevel4();
-});
-
-// Watch modals to handle close
-watch(() => showModals.value.level1, (newVal) => {
-  if (!newVal) handleCancel('level1');
-});
-watch(() => showModals.value.level2, (newVal) => {
-  if (!newVal) handleCancel('level2');
-});
-watch(() => showModals.value.level3, (newVal) => {
-  if (!newVal) handleCancel('level3');
-});
-watch(() => showModals.value.level4, (newVal) => {
-  if (!newVal) handleCancel('level4');
-});
-
-// Watch smart filter modals
-watch(() => showSmartFilter.value.level1, (newVal) => {
-  if (!newVal) handleFilterClose('level1');
-});
-watch(() => showSmartFilter.value.level2, (newVal) => {
-  if (!newVal) handleFilterClose('level2');
-});
-watch(() => showSmartFilter.value.level3, (newVal) => {
-  if (!newVal) handleFilterClose('level3');
-});
-watch(() => showSmartFilter.value.level4, (newVal) => {
-  if (!newVal) handleFilterClose('level4');
-});
-
-// Watch search keywords
-watch(() => searchKeywords.value.level1, () => {
-  fetchLevel1();
-});
-
-watch(() => searchKeywords.value.level2, () => {
-  if (selectedLevel1.value) fetchLevel2();
-});
-
-watch(() => searchKeywords.value.level3, () => {
-  if (selectedLevel2.value) fetchLevel3();
-});
-
-watch(() => searchKeywords.value.level4, () => {
-  if (selectedLevel3.value) fetchLevel4();
-});
-
-// Initialize
-onMounted(() => {
-  fetchLevel1();
-});
-
-// Handle row click for cascade
-const handleLevel1Click = (item) => {
-  selectedLevel1.value = item;
+// Helper: determine level number
+const getLevelNum = (levelKey) => {
+  return levelKey === 'level1' ? "1" : levelKey === 'level2' ? "2" : levelKey === 'level3' ? "3" : "4";
 };
 
-const handleLevel2Click = (item) => {
-  selectedLevel2.value = item;
-};
+// Add handler
+const handleAdd = (levelKey) => {
+  isEditMode.value = false;
+  isViewMode.value = false;
+  modalLevel.value = levelKey;
 
-const handleLevel3Click = (item) => {
-  selectedLevel3.value = item;
-};
-
-// Smart Filter handlers
-const handleFilter = (level) => {
-  originalFilters.value[level] = { ...smartFilters.value[level] };
-  showSmartFilter.value[level] = true;
-};
-
-const handleFilterReset = (level) => {
-  smartFilters.value[level] = { ...originalFilters.value[level] };
-  smartFilters.value[level].oun_status = "";
-};
-
-const handleFilterOk = (level) => {
-  showSmartFilter.value[level] = false;
-  if (level === 'level1') {
-    fetchLevel1();
-  } else if (level === 'level2') {
-    fetchLevel2();
-  } else if (level === 'level3') {
-    fetchLevel3();
-  } else if (level === 'level4') {
-    fetchLevel4();
-  }
-};
-
-const handleFilterClose = (level) => {
-  smartFilters.value[level] = { ...originalFilters.value[level] };
-  showSmartFilter.value[level] = false;
-};
-
-// Add/Edit handlers
-const handleAdd = (level) => {
-  isEditMode.value[level] = false;
-  isViewMode.value[level] = false;
-  
   ptjForm.value = {
     oun_id: null,
     oun_code: "",
@@ -511,11 +328,8 @@ const handleAdd = (level) => {
     st_staff_id_head: "",
     oun_tel_no: "",
     oun_fax_no: "",
-    oun_code_parent: level === 'level1' ? "" : 
-                    level === 'level2' ? (selectedLevel1.value?.oun_code || "") :
-                    level === 'level3' ? (selectedLevel2.value?.oun_code || "") :
-                    (selectedLevel3.value?.oun_code || ""),
-    oun_level: level === 'level1' ? "1" : level === 'level2' ? "2" : level === 'level3' ? "3" : "4",
+    oun_code_parent: getParentCode(levelKey),
+    oun_level: getLevelNum(levelKey),
     oun_status: "ACTIVE",
     st_staff_id_superior: "",
     tanggung_start_date: "",
@@ -524,13 +338,15 @@ const handleAdd = (level) => {
     oun_region: "",
     cny_country_code: "",
   };
-  showModals.value[level] = true;
+  showModal.value = true;
 };
 
-const handleEdit = (level, item) => {
-  isEditMode.value[level] = true;
-  isViewMode.value[level] = false;
-  
+// Edit handler
+const handleEdit = (levelKey, item) => {
+  isEditMode.value = true;
+  isViewMode.value = false;
+  modalLevel.value = levelKey;
+
   ptjForm.value = {
     oun_id: item.oun_id,
     oun_code: item.oun_code,
@@ -545,7 +361,7 @@ const handleEdit = (level, item) => {
     oun_fax_no: item.oun_fax_no || "",
     oun_code_parent: item.oun_code_parent || "",
     oun_level: item.oun_level?.toString() || "",
-    oun_status: item.oun_status === '1' ? 'ACTIVE' : 'INACTIVE',
+    oun_status: item.oun_status || 'ACTIVE',
     st_staff_id_superior: item.st_staff_id_superior || "",
     tanggung_start_date: item.tanggung_start_date ? new Date(item.tanggung_start_date).toISOString().split('T')[0] : "",
     tanggung_end_date: item.tanggung_end_date ? new Date(item.tanggung_end_date).toISOString().split('T')[0] : "",
@@ -553,22 +369,15 @@ const handleEdit = (level, item) => {
     oun_region: item.oun_region || "",
     cny_country_code: item.cny_country_code || "",
   };
-  showModals.value[level] = true;
+  showModal.value = true;
 };
 
-const handleView = (level, item) => {
-  isViewMode.value[level] = true;
-  isEditMode.value[level] = false;
-  
-  // Set selected item to trigger cascade for child datatables
-  if (level === 'level1') {
-    selectedLevel1.value = item;
-  } else if (level === 'level2') {
-    selectedLevel2.value = item;
-  } else if (level === 'level3') {
-    selectedLevel3.value = item;
-  }
-  
+// View handler
+const handleView = (levelKey, item) => {
+  isViewMode.value = true;
+  isEditMode.value = false;
+  modalLevel.value = levelKey;
+
   ptjForm.value = {
     oun_id: item.oun_id,
     oun_code: item.oun_code,
@@ -583,7 +392,7 @@ const handleView = (level, item) => {
     oun_fax_no: item.oun_fax_no || "",
     oun_code_parent: item.oun_code_parent || "",
     oun_level: item.oun_level?.toString() || "",
-    oun_status: item.oun_status === '1' ? 'ACTIVE' : 'INACTIVE',
+    oun_status: item.oun_status || 'ACTIVE',
     st_staff_id_superior: item.st_staff_id_superior || "",
     tanggung_start_date: item.tanggung_start_date ? new Date(item.tanggung_start_date).toISOString().split('T')[0] : "",
     tanggung_end_date: item.tanggung_end_date ? new Date(item.tanggung_end_date).toISOString().split('T')[0] : "",
@@ -591,1136 +400,865 @@ const handleView = (level, item) => {
     oun_region: item.oun_region || "",
     cny_country_code: item.cny_country_code || "",
   };
-  showModals.value[level] = true;
+  showModal.value = true;
 };
 
-const handleSave = async (level) => {
-  // Validation
+// Save handler
+const handleSave = async () => {
+  const level = modalLevel.value;
+
   if (!ptjForm.value.oun_code || !ptjForm.value.oun_desc || !ptjForm.value.oun_status) {
-    $swal.fire({
-      title: "Validation Error",
-      text: "Please fill in all required fields",
-      icon: "warning",
-    });
+    $swal.fire({ title: "Validation Error", text: "Please fill in all required fields", icon: "warning" });
     return;
   }
 
   try {
     loading.value[level] = true;
-    
-    // TODO: Implement save logic
-    $swal.fire({
-      title: "Info",
-      text: `Save functionality for ${level} will be implemented`,
-      icon: "info",
+
+    const url = isEditMode.value && ptjForm.value.oun_code
+      ? `/api/setup/ptj-code/${ptjForm.value.oun_code}`
+      : "/api/setup/ptj-code";
+    const method = isEditMode.value ? "PUT" : "POST";
+
+    const { data } = await useFetch(url, {
+      method,
+      body: {
+        oun_code: ptjForm.value.oun_code,
+        oun_desc: ptjForm.value.oun_desc,
+        oun_desc_bi: ptjForm.value.oun_desc_bi,
+        org_code: ptjForm.value.org_code,
+        org_desc: ptjForm.value.org_desc,
+        oun_address: ptjForm.value.oun_address,
+        oun_state: ptjForm.value.oun_state,
+        st_staff_id_head: ptjForm.value.st_staff_id_head,
+        oun_tel_no: ptjForm.value.oun_tel_no,
+        oun_fax_no: ptjForm.value.oun_fax_no,
+        oun_code_parent: ptjForm.value.oun_code_parent,
+        oun_level: ptjForm.value.oun_level,
+        oun_status: ptjForm.value.oun_status,
+        st_staff_id_superior: ptjForm.value.st_staff_id_superior,
+        tanggung_start_date: ptjForm.value.tanggung_start_date,
+        tanggung_end_date: ptjForm.value.tanggung_end_date,
+        oun_shortname: ptjForm.value.oun_shortname,
+        oun_region: ptjForm.value.oun_region,
+        cny_country_code: ptjForm.value.cny_country_code,
+      },
+      initialCache: false,
     });
-    
-    showModals.value[level] = false;
-    isEditMode.value[level] = false;
+
+    if (data.value?.statusCode === 200 || data.value?.statusCode === 201) {
+      const msg = isEditMode.value ? "PTJ Code updated successfully" : "PTJ Code created successfully";
+      $swal.fire({ title: "Success", text: msg, icon: "success", timer: 2000, showConfirmButton: false });
+      if (isEditMode.value) await logUpdateSuccess(msg, "PTJ Code updated");
+      else await logCreateSuccess(msg, "PTJ Code created");
+      showModal.value = false;
+
+      const fetchMap = { level1: fetchLevel1, level2: fetchLevel2, level3: fetchLevel3, level4: fetchLevel4 };
+      if (fetchMap[level]) await fetchMap[level]();
+    } else {
+      $swal.fire({ title: "Error", text: data.value?.message || "Failed to save", icon: "error" });
+    }
   } catch (error) {
     console.error("Error saving:", error);
-    $swal.fire({
-      title: "Error",
-      text: "An error occurred while saving",
-      icon: "error",
-    });
+    $swal.fire({ title: "Error", text: "An error occurred while saving", icon: "error" });
   } finally {
     loading.value[level] = false;
   }
 };
 
-const handleCancel = (level) => {
-  showModals.value[level] = false;
-  isEditMode.value[level] = false;
-  isViewMode.value[level] = false;
-  
-  // Reset form
-  ptjForm.value = {
-    oun_id: null,
-    oun_code: "",
-    oun_desc: "",
-    oun_desc_bi: "",
-    org_code: "",
-    org_desc: "",
-    oun_address: "",
-    oun_state: "",
-    st_staff_id_head: "",
-    oun_tel_no: "",
-    oun_fax_no: "",
-    oun_code_parent: "",
-    oun_level: "",
-    oun_status: "ACTIVE",
-    st_staff_id_superior: "",
-    tanggung_start_date: "",
-    tanggung_end_date: "",
-    oun_shortname: "",
-    oun_region: "",
-    cny_country_code: "",
-  };
+// Cancel modal
+const handleCancel = () => {
+  showModal.value = false;
+  isViewMode.value = false;
+  isEditMode.value = false;
 };
 
-const handleDelete = async (level, item) => {
+// Delete handler
+const handleDelete = async (levelKey, item) => {
+  const messageText = "Are you sure? Do you want to delete this record?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
-    text: "You won't be able to revert this!",
+    text: "Do you want to delete this record?",
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#d33",
     cancelButtonColor: "#3085d6",
     confirmButtonText: "Yes, delete it!",
+    cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
-      loading.value[level] = true;
+      loading.value[levelKey] = true;
       const url = `/api/setup/ptj-code/${item.oun_code}`;
 
-      const { data } = await useFetch(url, {
-        method: "DELETE",
-        initialCache: false,
-      });
+      const { data } = await useFetch(url, { method: "DELETE", initialCache: false });
 
       if (data.value?.statusCode === 200) {
-        $swal.fire({
-          title: "Deleted!",
-          text: "Record has been deleted.",
-          icon: "success",
-          timer: 2000,
-          showConfirmButton: false,
-        });
-        
-        // Refetch the appropriate level
-        if (level === 'level1') {
-          await fetchLevel1();
-        } else if (level === 'level2') {
-          await fetchLevel2();
-        } else if (level === 'level3') {
-          await fetchLevel3();
-        } else if (level === 'level4') {
-          await fetchLevel4();
-        }
+        $swal.fire({ title: "Deleted!", text: "Record has been deleted.", icon: "success", timer: 2000, showConfirmButton: false });
+        const fetchMap = { level1: fetchLevel1, level2: fetchLevel2, level3: fetchLevel3, level4: fetchLevel4 };
+        if (fetchMap[levelKey]) await fetchMap[levelKey]();
       } else {
-        $swal.fire({
-          title: "Error",
-          text: data.value?.message || "Failed to delete record",
-          icon: "error",
-        });
+        $swal.fire({ title: "Error", text: data.value?.message || "Failed to delete", icon: "error" });
       }
     } catch (error) {
       console.error("Error deleting:", error);
-      $swal.fire({
-        title: "Error",
-        text: "An error occurred while deleting",
-        icon: "error",
-      });
+      $swal.fire({ title: "Error", text: "An error occurred while deleting", icon: "error" });
     } finally {
-      loading.value[level] = false;
+      loading.value[levelKey] = false;
     }
   }
 };
 
-// Download functions
-const handleDownloadPDF = (level) => {
-  $swal.fire({
-    title: "Info",
-    text: "PDF download functionality will be implemented",
-    icon: "info",
+// Breadcrumb path showing current selection chain
+const selectionPath = computed(() => {
+  const parts = [];
+  if (selected.value.level1) parts.push({ key: 'level1', label: selected.value.level1.oun_code, desc: selected.value.level1.oun_desc });
+  if (selected.value.level2) parts.push({ key: 'level2', label: selected.value.level2.oun_code, desc: selected.value.level2.oun_desc });
+  if (selected.value.level3) parts.push({ key: 'level3', label: selected.value.level3.oun_code, desc: selected.value.level3.oun_desc });
+  if (selected.value.level4) parts.push({ key: 'level4', label: selected.value.level4.oun_code, desc: selected.value.level4.oun_desc });
+  return parts;
+});
+
+// Action menu (3-dot menu and right-click context menu)
+const actionMenu = ref({ show: false, x: 0, y: 0, levelKey: '', item: null });
+
+const toggleActionMenu = (e, levelKey, item) => {
+  e.stopPropagation();
+  if (actionMenu.value.show && actionMenu.value.item === item) {
+    actionMenu.value.show = false;
+    return;
+  }
+  const rect = e.currentTarget.getBoundingClientRect();
+  actionMenu.value = { show: true, x: rect.right + 4, y: rect.top, levelKey, item };
+
+  nextTick(() => {
+    const menuWidth = 160;
+    const menuHeight = 120;
+    if (actionMenu.value.x + menuWidth > window.innerWidth) {
+      actionMenu.value.x = rect.left - menuWidth - 4;
+    }
+    if (actionMenu.value.y + menuHeight > window.innerHeight) {
+      actionMenu.value.y = window.innerHeight - menuHeight - 8;
+    }
   });
 };
 
-const handleDownloadCSV = (level) => {
-  $swal.fire({
-    title: "Info",
-    text: "CSV download functionality will be implemented",
-    icon: "info",
+const handleContextMenu = (e, levelKey, item) => {
+  e.preventDefault();
+  actionMenu.value = { show: true, x: e.clientX, y: e.clientY, levelKey, item };
+};
+
+const closeActionMenu = () => {
+  actionMenu.value.show = false;
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', closeActionMenu);
+}
+
+// Column download menu
+const downloadMenu = ref({ show: false, x: 0, y: 0, colKey: '' });
+
+const toggleDownloadMenu = (e, colKey) => {
+  e.stopPropagation();
+  if (downloadMenu.value.show && downloadMenu.value.colKey === colKey) {
+    downloadMenu.value.show = false;
+    return;
+  }
+  const rect = e.currentTarget.getBoundingClientRect();
+  downloadMenu.value = { show: true, x: rect.left, y: rect.bottom + 4, colKey };
+  nextTick(() => {
+    const menuWidth = 180;
+    const menuHeight = 130;
+    if (downloadMenu.value.x + menuWidth > window.innerWidth) {
+      downloadMenu.value.x = window.innerWidth - menuWidth - 8;
+    }
+    if (downloadMenu.value.y + menuHeight > window.innerHeight) {
+      downloadMenu.value.y = rect.top - menuHeight - 4;
+    }
   });
 };
+
+const closeDownloadMenu = () => {
+  downloadMenu.value.show = false;
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', closeDownloadMenu);
+}
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('click', closeActionMenu);
+    window.removeEventListener('click', closeDownloadMenu);
+  }
+});
+
+// Helper: get column title
+const getColumnTitle = (colKey) => columns.value.find(c => c.key === colKey)?.title || colKey;
+
+// Helper: get export data for a column
+const getExportData = (colKey) => {
+  const items = listData.value[colKey] || [];
+  return items.map((item, idx) => ({
+    no: idx + 1,
+    'PTJ Code': item.oun_code || '',
+    'Description (Malay)': item.oun_desc || '',
+    'Description (English)': item.oun_desc_bi || '',
+    'Parent Code': item.oun_code_parent || '',
+    'Status': item.oun_status || '',
+    'Country': item.cny_country_code || '',
+  }));
+};
+
+const getExportColumns = (colKey) => {
+  if (colKey === 'level1') return ['PTJ Code', 'Description (Malay)', 'Description (English)', 'Status', 'Country'];
+  return ['PTJ Code', 'Description (Malay)', 'Description (English)', 'Parent Code', 'Status', 'Country'];
+};
+
+// Format datetime helper
+const formatExportDateTime = () => {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  const hours = now.getHours();
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = String(hours % 12 || 12).padStart(2, '0');
+  return `Date : ${day}/${month}/${year} ${displayHours}:${minutes}:${seconds} ${ampm}`;
+};
+
+// Download PDF
+const handleDownloadPDF = async (colKey) => {
+  try {
+    const { default: jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
+
+    const dataToExport = getExportData(colKey);
+    if (dataToExport.length === 0) {
+      $swal.fire({ title: "No Data", text: "There is no data to export", icon: "warning" });
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 10;
+    const formattedDateTime = formatExportDateTime();
+    const title = getColumnTitle(colKey);
+
+    let logoHeight = 0;
+    try {
+      const logoUrl = '/img/logo/organization_logo.png';
+      const response = await fetch(logoUrl);
+      if (response.ok) {
+        const blob = await response.blob();
+        const logoData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Failed to read logo'));
+          reader.readAsDataURL(blob);
+        });
+        const img = await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error('Failed to load image'));
+          image.src = logoData;
+        });
+        const aspectRatio = img.width / img.height;
+        logoHeight = 12;
+        doc.addImage(logoData, 'PNG', margin, margin, 12 * aspectRatio, 12);
+      }
+    } catch (e) { logoHeight = 0; }
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    const dtw = doc.getTextWidth(formattedDateTime);
+    doc.text(formattedDateTime, pageWidth - margin - dtw, margin + 8);
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    const tw = doc.getTextWidth(title);
+    const titleY = margin + (logoHeight > 0 ? logoHeight + 3 : 10);
+    doc.text(title, (pageWidth - tw) / 2, titleY);
+
+    const exportColumns = getExportColumns(colKey);
+    const tableData = dataToExport.map((item, idx) => {
+      const row = [(idx + 1).toString()];
+      exportColumns.forEach(col => row.push((item[col] || '').toString()));
+      return row;
+    });
+
+    autoTable(doc, {
+      head: [['No.', ...exportColumns]],
+      body: tableData,
+      startY: titleY + 8,
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 9, cellPadding: 2, textColor: [0, 0, 0] },
+      headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+      bodyStyles: { halign: 'left' },
+      columnStyles: { 0: { halign: 'center', cellWidth: 15 } },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    const safeName = title.replace(/[^a-zA-Z0-9]/g, '_');
+    doc.save(`${safeName}_${new Date().toISOString().split('T')[0]}.pdf`);
+    $swal.fire({ title: "Success", text: "PDF downloaded successfully", icon: "success", timer: 2000, showConfirmButton: false });
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    $swal.fire({ title: "Error", text: "Failed to generate PDF", icon: "error" });
+  }
+};
+
+// Download CSV
+const handleDownloadCSV = (colKey) => {
+  try {
+    const dataToExport = getExportData(colKey);
+    if (dataToExport.length === 0) {
+      $swal.fire({ title: "No Data", text: "There is no data to export", icon: "warning" });
+      return;
+    }
+
+    const escapeCSV = (field) => {
+      if (field === null || field === undefined) return '';
+      const str = String(field);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const title = getColumnTitle(colKey);
+    const exportColumns = getExportColumns(colKey);
+    const headers = ['No.', ...exportColumns];
+
+    let csvContent = '';
+    csvContent += escapeCSV(formatExportDateTime()) + '\n';
+    csvContent += escapeCSV(title) + '\n\n';
+    csvContent += headers.map(escapeCSV).join(',') + '\n';
+
+    dataToExport.forEach((item, idx) => {
+      const row = [(idx + 1).toString()];
+      exportColumns.forEach(col => row.push(item[col] || ''));
+      csvContent += row.map(escapeCSV).join(',') + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.setAttribute('href', URL.createObjectURL(blob));
+    const safeName = title.replace(/[^a-zA-Z0-9]/g, '_');
+    link.setAttribute('download', `${safeName}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    $swal.fire({ title: "Success", text: "CSV downloaded successfully", icon: "success", timer: 2000, showConfirmButton: false });
+  } catch (error) {
+    console.error("Error generating CSV:", error);
+    $swal.fire({ title: "Error", text: "Failed to generate CSV", icon: "error" });
+  }
+};
+
+// Download Excel
+const handleDownloadExcel = async (colKey) => {
+  try {
+    const ExcelJS = await import('exceljs');
+    const dataToExport = getExportData(colKey);
+    if (dataToExport.length === 0) {
+      $swal.fire({ title: "No Data", text: "There is no data to export", icon: "warning" });
+      return;
+    }
+
+    const title = getColumnTitle(colKey);
+    const exportColumns = getExportColumns(colKey);
+    const worksheetData = [];
+
+    worksheetData.push([formatExportDateTime()]);
+    worksheetData.push([title]);
+    worksheetData.push([]);
+    worksheetData.push(['No.', ...exportColumns]);
+
+    const headerRowIndex = 3;
+
+    dataToExport.forEach((item, idx) => {
+      const row = [(idx + 1).toString()];
+      exportColumns.forEach(col => row.push(item[col] || ''));
+      worksheetData.push(row);
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(title);
+
+    worksheetData.forEach((row, rowIndex) => {
+      const wsRow = worksheet.addRow(row);
+      if (rowIndex === headerRowIndex) {
+        wsRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } };
+          cell.font = { bold: true };
+          cell.alignment = { horizontal: colNumber === 1 ? 'center' : 'left', vertical: 'middle' };
+        });
+      }
+    });
+
+    worksheet.getColumn(1).width = 8;
+    exportColumns.forEach((col, index) => {
+      worksheet.getColumn(index + 2).width = 25;
+    });
+
+    const safeName = title.replace(/[^a-zA-Z0-9]/g, '_');
+    const fileName = `${safeName}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const link = document.createElement('a');
+    link.setAttribute('href', URL.createObjectURL(blob));
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    $swal.fire({ title: "Success", text: "Excel downloaded successfully", icon: "success", timer: 2000, showConfirmButton: false });
+  } catch (error) {
+    console.error("Error generating Excel:", error);
+    if (error.message && (error.message.includes('exceljs') || error.message.includes('Cannot find module'))) {
+      $swal.fire({ title: "Package Required", text: "Please install exceljs: npm install exceljs", icon: "warning" });
+    } else {
+      $swal.fire({ title: "Error", text: "Failed to generate Excel", icon: "error" });
+    }
+  }
+};
+
+// Initialize
+onMounted(() => {
+  fetchLevel1();
+});
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <LayoutsBreadcrumb />
 
-    <!-- List of PTJ Code - Level 1 Datatable -->
+    <!-- Selection path breadcrumb -->
+    <rs-card>
+      <template #body>
+        <div class="flex items-center gap-1 text-sm min-h-[28px] flex-wrap">
+          <span class="text-gray-500 dark:text-gray-400 font-medium">Path:</span>
+          <template v-if="selectionPath.length === 0">
+            <span class="text-gray-400 dark:text-gray-500 italic">Select an item to begin browsing...</span>
+          </template>
+          <template v-for="(part, idx) in selectionPath" :key="part.key">
+            <span v-if="idx > 0" class="text-gray-400 dark:text-gray-500 mx-1">
+              <Icon name="material-symbols:chevron-right" size="16" />
+            </span>
+            <span
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 cursor-default"
+              :title="part.desc"
+            >
+              {{ part.label }}
+            </span>
+          </template>
+        </div>
+      </template>
+    </rs-card>
+
+    <!-- Finder-style column browser -->
     <rs-card>
       <template #header>
-        <div class="text-lg font-semibold">List of PTJ Code - Level 1</div>
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-semibold">PTJ Code Browser</div>
+          <div class="text-sm text-gray-500 dark:text-gray-400">
+            {{ visibleColumns.length }} of {{ columns.length }} levels
+          </div>
+        </div>
       </template>
       <template #body>
-        <div class="space-y-4">
-          <div class="flex justify-between items-center gap-4 mb-4">
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Display:</label>
-              <FormKit
-                type="select"
-                v-model="pageSizes.level1"
-                :options="[
-                  { label: '5', value: 5 },
-                  { label: '10', value: 10 },
-                  { label: '25', value: 25 },
-                  { label: '50', value: 50 },
-                  { label: '100', value: 100 },
-                ]"
-                outer-class="mb-0"
-              />
+        <div
+          ref="columnBrowser"
+          class="finder-browser flex overflow-x-auto"
+        >
+          <!-- Each column panel with resize handle -->
+          <template v-for="(colKey, colIdx) in visibleColumns" :key="colKey">
+          <div
+            class="finder-column flex-shrink-0 flex flex-col border-r border-gray-100 dark:border-gray-800"
+            :style="{ width: columnWidths[colKey] + 'px' }"
+          >
+            <!-- Column header -->
+            <div class="finder-column-header flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <span class="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wide truncate">
+                {{ columns.find(c => c.key === colKey)?.title }}
+              </span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 dark:text-gray-500 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">
+                  {{ listData[colKey].length }}
+                </span>
+                <button
+                  @click.stop="handleAdd(colKey)"
+                  class="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="Add new"
+                >
+                  <Icon name="material-symbols:add" size="16" class="text-gray-500 dark:text-gray-400" />
+                </button>
+                <button
+                  @click.stop="toggleDownloadMenu($event, colKey)"
+                  class="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="Download"
+                >
+                  <Icon name="mdi:dots-vertical" size="16" class="text-gray-500 dark:text-gray-400" />
+                </button>
+              </div>
             </div>
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Search:</label>
-              <div class="flex gap-2">
-                <FormKit
-                  v-model="searchKeywords.level1"
+
+            <!-- Column search -->
+            <div class="px-2 py-1.5 border-b border-gray-100 dark:border-gray-700">
+              <div class="relative">
+                <Icon name="material-symbols:search" size="14" class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  v-model="searchKeywords[colKey]"
                   type="text"
                   placeholder="Search..."
-                  outer-class="mb-0"
-                  input-class="!h-8 !text-sm !px-2"
-                  inner-class="!h-8"
+                  class="w-full pl-7 pr-7 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                />
+                <button
+                  v-if="searchKeywords[colKey]"
+                  @click="searchKeywords[colKey] = ''"
+                  class="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 >
-                  <template #suffix>
-                    <button
-                      v-if="searchKeywords.level1"
-                      type="button"
-                      @click="searchKeywords.level1 = ''"
-                      class="px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                  <Icon name="material-symbols:close" size="12" class="text-gray-400" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Column items list -->
+            <div class="finder-column-body flex-1 overflow-y-auto">
+              <!-- Loading -->
+              <div v-if="loading[colKey]" class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+
+              <!-- Empty state -->
+              <div v-else-if="listData[colKey].length === 0" class="flex items-center justify-center py-8 px-3">
+                <span class="text-xs text-gray-400 dark:text-gray-500 italic">No items found</span>
+              </div>
+
+              <!-- Items -->
+              <div v-else class="py-0.5">
+                <div
+                  v-for="(item, idx) in listData[colKey]"
+                  :key="idx"
+                  @click="handleItemClick(colKey, item)"
+                  @contextmenu="handleContextMenu($event, colKey, item)"
+                  class="finder-item group flex items-center gap-2 px-3 py-1.5 mx-0.5 rounded cursor-pointer transition-all duration-100"
+                  :class="{
+                    'bg-primary text-white': isItemSelected(colKey, item),
+                    'hover:bg-gray-100 dark:hover:bg-gray-700/50': !isItemSelected(colKey, item),
+                  }"
+                >
+                  <!-- Status dot -->
+                  <span
+                    class="flex-shrink-0 w-1.5 h-1.5 rounded-full"
+                    :class="{
+                      'bg-green-400': getItemStatus(colKey, item) === 'ACTIVE',
+                      'bg-red-400': getItemStatus(colKey, item) === 'INACTIVE',
+                      'bg-gray-300': !getItemStatus(colKey, item),
+                    }"
+                  ></span>
+
+                  <!-- Item content -->
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-semibold truncate" :class="{ 'text-white': isItemSelected(colKey, item) }">
+                      {{ getItemLabel(colKey, item) }}
+                    </div>
+                    <div
+                      class="text-[10px] truncate leading-tight"
+                      :class="{
+                        'text-white/70': isItemSelected(colKey, item),
+                        'text-gray-500 dark:text-gray-400': !isItemSelected(colKey, item),
+                      }"
                     >
-                      <Icon
-                        name="material-symbols:close"
-                        class="!w-3.5 !h-3.5 text-gray-500"
-                      />
-                    </button>
-                  </template>
-                </FormKit>
-                <rs-button
-                  class="!px-3"
-                  style="height: 40px; min-height: 40px;"
-                  @click="handleFilter('level1')"
-                >
-                  <Icon
-                    name="ic:outline-filter-alt"
-                    size="1rem"
-                  />
-                </rs-button>
+                      {{ getItemDescription(colKey, item) }}
+                    </div>
+                  </div>
+
+                  <!-- 3-dot action menu (visible on hover or selected) -->
+                  <button
+                    @click.stop="toggleActionMenu($event, colKey, item)"
+                    class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-opacity"
+                    :class="{
+                      'opacity-100': isItemSelected(colKey, item),
+                      'opacity-0 group-hover:opacity-100': !isItemSelected(colKey, item),
+                    }"
+                    title="Actions"
+                  >
+                    <Icon name="mdi:dots-vertical" size="16" :class="isItemSelected(colKey, item) ? 'text-white/80' : 'text-gray-400'" />
+                  </button>
+
+                </div>
               </div>
             </div>
           </div>
-          <div class="level1-table-wrapper" :style="{ maxHeight: level1List.length > 10 ? '600px' : 'auto', overflowY: level1List.length > 10 ? 'auto' : 'visible' }">
-            <div v-if="loading.level1" class="text-center py-8">
-              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-            <rs-table
-              v-else
-              :data="level1List"
-              :field="['No', 'PTJ Code', 'PTJ Desc (Malay)', 'Country', 'Status', 'Action']"
-              :options="{
-                variant: 'primary',
-                striped: false,
-                bordered: false,
-                borderless: true,
-              }"
-              :optionsAdvanced="{
-                sortable: true,
-                filterable: false,
-                responsive: false,
-                outsideBorder: false,
-              }"
-              advanced
-              :pageSize="pageSizes.level1"
-            >
-              <template v-slot:No="data">
-                {{ data.value.no }}
-              </template>
-              <template v-slot:PTJCode="data">
-                <span 
-                  :class="{ 'bg-yellow-200 dark:bg-yellow-800': selectedLevel1?.oun_code === data.value.oun_code }"
-                  class="cursor-pointer px-2 py-1 rounded"
-                  @click="handleLevel1Click(data.value)"
-                >
-                  {{ data.value['PTJ Code'] }}
-                </span>
-              </template>
-              <template v-slot:PTJDescMalay="data">
-                {{ data.value['PTJ Desc (Malay)'] }}
-              </template>
-              <template v-slot:Country="data">
-                {{ data.value.Country }}
-              </template>
-              <template v-slot:Status="data">
-                <span
-                  :class="{
-                    'text-green-600 dark:text-green-400': data.value.Status === 'ACTIVE',
-                    'text-red-600 dark:text-red-400': data.value.Status === 'INACTIVE',
-                  }"
-                >
-                  {{ data.value.Status }}
-                </span>
-              </template>
-              <template v-slot:Action="data">
-                <div class="flex gap-2 justify-end">
-                  <button
-                    @click="handleLevel1Click(data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="View List"
-                  >
-                    <i class="fas fa-level-down-alt text-gray-600 dark:text-gray-400" style="font-size: 16px;"></i>
-                  </button>
-                  <button
-                    @click="handleView('level1', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="View"
-                  >
-                    <Icon name="material-symbols:visibility" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleEdit('level1', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Edit"
-                  >
-                    <Icon name="material-symbols:edit" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleDelete('level1', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Delete"
-                  >
-                    <Icon name="material-symbols:delete" class="text-red-600 dark:text-red-400" size="20" />
-                  </button>
-                </div>
-              </template>
-            </rs-table>
+          <!-- Resize handle -->
+          <div
+            class="finder-resize-handle flex-shrink-0 w-[5px] cursor-col-resize relative group/resize"
+            @mousedown="startResize($event, colKey)"
+          >
+            <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-gray-200 dark:bg-gray-700 group-hover/resize:w-[3px] group-hover/resize:bg-primary/40 transition-all"></div>
           </div>
-          <div class="flex justify-between items-center pt-2">
-            <div class="text-sm text-gray-600 dark:text-gray-400">
-              {{ level1List.length }} records
-            </div>
-            <div class="flex items-center gap-2">
-              <rs-button variant="secondary" @click="handleDownloadPDF('level1')">
-                <Icon name="material-symbols:picture-as-pdf" class="mr-2" size="1rem" />
-                Download PDF
-              </rs-button>
-              <rs-button variant="secondary" @click="handleDownloadCSV('level1')">
-                <Icon name="material-symbols:file-download" class="mr-2" size="1rem" />
-                Download CSV
-              </rs-button>
-              <rs-button variant="primary" @click="handleAdd('level1')">
-                <Icon name="material-symbols:add" class="mr-2" size="1rem" />
-                Add
-              </rs-button>
-            </div>
-          </div>
+          </template>
         </div>
       </template>
     </rs-card>
 
-    <!-- List of PTJ Code - Level 2 Datatable -->
-    <rs-card v-if="selectedLevel1">
-      <template #header>
-        <div class="text-lg font-semibold">List of PTJ Code - Level 2</div>
-      </template>
-      <template #body>
-        <div class="space-y-4">
-          <div class="flex justify-between items-center gap-4 mb-4">
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Display:</label>
-              <FormKit
-                type="select"
-                v-model="pageSizes.level2"
-                :options="[
-                  { label: '5', value: 5 },
-                  { label: '10', value: 10 },
-                  { label: '25', value: 25 },
-                  { label: '50', value: 50 },
-                  { label: '100', value: 100 },
-                ]"
-                outer-class="mb-0"
-              />
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Search:</label>
-              <div class="flex gap-2">
-                <FormKit
-                  v-model="searchKeywords.level2"
-                  type="text"
-                  placeholder="Search..."
-                  outer-class="mb-0"
-                  input-class="!h-8 !text-sm !px-2"
-                  inner-class="!h-8"
-                >
-                  <template #suffix>
-                    <button
-                      v-if="searchKeywords.level2"
-                      type="button"
-                      @click="searchKeywords.level2 = ''"
-                      class="px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    >
-                      <Icon
-                        name="material-symbols:close"
-                        class="!w-3.5 !h-3.5 text-gray-500"
-                      />
-                    </button>
-                  </template>
-                </FormKit>
-                <rs-button
-                  class="!px-3"
-                  style="height: 40px; min-height: 40px;"
-                  @click="handleFilter('level2')"
-                >
-                  <Icon
-                    name="ic:outline-filter-alt"
-                    size="1rem"
-                  />
-                </rs-button>
-              </div>
-            </div>
-          </div>
-          <div class="level2-table-wrapper" :style="{ maxHeight: level2List.length > 10 ? '600px' : 'auto', overflowY: level2List.length > 10 ? 'auto' : 'visible' }">
-            <div v-if="loading.level2" class="text-center py-8">
-              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-            <rs-table
-              v-else
-              :data="level2List"
-              :field="['No', 'PTJ Code', 'PTJ Desc (Malay)', 'Code Parent', 'Country', 'Status', 'Action']"
-              :options="{
-                variant: 'primary',
-                striped: false,
-                bordered: false,
-                borderless: true,
-              }"
-              :optionsAdvanced="{
-                sortable: true,
-                filterable: false,
-                responsive: false,
-                outsideBorder: false,
-              }"
-              advanced
-              :pageSize="pageSizes.level2"
-            >
-              <template v-slot:No="data">
-                {{ data.value.no }}
-              </template>
-              <template v-slot:PTJCode="data">
-                <span 
-                  :class="{ 'bg-yellow-200 dark:bg-yellow-800': selectedLevel2?.oun_code === data.value.oun_code }"
-                  class="cursor-pointer px-2 py-1 rounded"
-                  @click="handleLevel2Click(data.value)"
-                >
-                  {{ data.value['PTJ Code'] }}
-                </span>
-              </template>
-              <template v-slot:PTJDescMalay="data">
-                {{ data.value['PTJ Desc (Malay)'] }}
-              </template>
-              <template v-slot:CodeParent="data">
-                {{ data.value['Code Parent'] }}
-              </template>
-              <template v-slot:Country="data">
-                {{ data.value.Country }}
-              </template>
-              <template v-slot:Status="data">
-                <span
-                  :class="{
-                    'text-green-600 dark:text-green-400': data.value.Status === 'ACTIVE',
-                    'text-red-600 dark:text-red-400': data.value.Status === 'INACTIVE',
-                  }"
-                >
-                  {{ data.value.Status }}
-                </span>
-              </template>
-              <template v-slot:Action="data">
-                <div class="flex gap-2 justify-end">
-                  <button
-                    @click="handleLevel2Click(data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="View List"
-                  >
-                    <i class="fas fa-level-down-alt text-gray-600 dark:text-gray-400" style="font-size: 16px;"></i>
-                  </button>
-                  <button
-                    @click="handleView('level2', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="View"
-                  >
-                    <Icon name="material-symbols:visibility" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleEdit('level2', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Edit"
-                  >
-                    <Icon name="material-symbols:edit" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleDelete('level2', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Delete"
-                  >
-                    <Icon name="material-symbols:delete" class="text-red-600 dark:text-red-400" size="20" />
-                  </button>
-                </div>
-              </template>
-            </rs-table>
-          </div>
-          <div class="flex justify-between items-center pt-2">
-            <div class="text-sm text-gray-600 dark:text-gray-400">
-              {{ level2List.length }} records
-            </div>
-            <div class="flex items-center gap-2">
-              <rs-button variant="secondary" @click="handleDownloadPDF('level2')">
-                <Icon name="material-symbols:picture-as-pdf" class="mr-2" size="1rem" />
-                Download PDF
-              </rs-button>
-              <rs-button variant="secondary" @click="handleDownloadCSV('level2')">
-                <Icon name="material-symbols:file-download" class="mr-2" size="1rem" />
-                Download CSV
-              </rs-button>
-              <rs-button variant="primary" @click="handleAdd('level2')">
-                <Icon name="material-symbols:add" class="mr-2" size="1rem" />
-                Add
-              </rs-button>
-            </div>
-          </div>
-        </div>
-      </template>
-    </rs-card>
-
-    <!-- List of PTJ Code - Level 3 Datatable -->
-    <rs-card v-if="selectedLevel2">
-      <template #header>
-        <div class="text-lg font-semibold">List of PTJ Code - Level 3</div>
-      </template>
-      <template #body>
-        <div class="space-y-4">
-          <div class="flex justify-between items-center gap-4 mb-4">
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Display:</label>
-              <FormKit
-                type="select"
-                v-model="pageSizes.level3"
-                :options="[
-                  { label: '5', value: 5 },
-                  { label: '10', value: 10 },
-                  { label: '25', value: 25 },
-                  { label: '50', value: 50 },
-                  { label: '100', value: 100 },
-                ]"
-                outer-class="mb-0"
-              />
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Search:</label>
-              <div class="flex gap-2">
-                <FormKit
-                  v-model="searchKeywords.level3"
-                  type="text"
-                  placeholder="Search..."
-                  outer-class="mb-0"
-                  input-class="!h-8 !text-sm !px-2"
-                  inner-class="!h-8"
-                >
-                  <template #suffix>
-                    <button
-                      v-if="searchKeywords.level3"
-                      type="button"
-                      @click="searchKeywords.level3 = ''"
-                      class="px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    >
-                      <Icon
-                        name="material-symbols:close"
-                        class="!w-3.5 !h-3.5 text-gray-500"
-                      />
-                    </button>
-                  </template>
-                </FormKit>
-                <rs-button
-                  class="!px-3"
-                  style="height: 40px; min-height: 40px;"
-                  @click="handleFilter('level3')"
-                >
-                  <Icon
-                    name="ic:outline-filter-alt"
-                    size="1rem"
-                  />
-                </rs-button>
-              </div>
-            </div>
-          </div>
-          <div class="level3-table-wrapper" :style="{ maxHeight: level3List.length > 10 ? '600px' : 'auto', overflowY: level3List.length > 10 ? 'auto' : 'visible' }">
-            <div v-if="loading.level3" class="text-center py-8">
-              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-            <rs-table
-              v-else
-              :data="level3List"
-              :field="['No', 'PTJ Code', 'PTJ Desc (Malay)', 'Code Parent', 'Region', 'Country', 'Status', 'Action']"
-              :options="{
-                variant: 'primary',
-                striped: false,
-                bordered: false,
-                borderless: true,
-              }"
-              :optionsAdvanced="{
-                sortable: true,
-                filterable: false,
-                responsive: false,
-                outsideBorder: false,
-              }"
-              advanced
-              :pageSize="pageSizes.level3"
-            >
-              <template v-slot:No="data">
-                {{ data.value.no }}
-              </template>
-              <template v-slot:PTJCode="data">
-                <span 
-                  :class="{ 'bg-yellow-200 dark:bg-yellow-800': selectedLevel3?.oun_code === data.value.oun_code }"
-                  class="cursor-pointer px-2 py-1 rounded"
-                  @click="handleLevel3Click(data.value)"
-                >
-                  {{ data.value['PTJ Code'] }}
-                </span>
-              </template>
-              <template v-slot:PTJDescMalay="data">
-                {{ data.value['PTJ Desc (Malay)'] }}
-              </template>
-              <template v-slot:CodeParent="data">
-                {{ data.value['Code Parent'] }}
-              </template>
-              <template v-slot:Region="data">
-                {{ data.value.Region }}
-              </template>
-              <template v-slot:Country="data">
-                {{ data.value.Country }}
-              </template>
-              <template v-slot:Status="data">
-                <span
-                  :class="{
-                    'text-green-600 dark:text-green-400': data.value.Status === 'ACTIVE',
-                    'text-red-600 dark:text-red-400': data.value.Status === 'INACTIVE',
-                  }"
-                >
-                  {{ data.value.Status }}
-                </span>
-              </template>
-              <template v-slot:Action="data">
-                <div class="flex gap-2 justify-end">
-                  <button
-                    @click="handleLevel3Click(data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="View List"
-                  >
-                    <i class="fas fa-level-down-alt text-gray-600 dark:text-gray-400" style="font-size: 16px;"></i>
-                  </button>
-                  <button
-                    @click="handleView('level3', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="View"
-                  >
-                    <Icon name="material-symbols:visibility" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleEdit('level3', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Edit"
-                  >
-                    <Icon name="material-symbols:edit" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleDelete('level3', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Delete"
-                  >
-                    <Icon name="material-symbols:delete" class="text-red-600 dark:text-red-400" size="20" />
-                  </button>
-                </div>
-              </template>
-            </rs-table>
-          </div>
-          <div class="flex justify-between items-center pt-2">
-            <div class="text-sm text-gray-600 dark:text-gray-400">
-              {{ level3List.length }} records
-            </div>
-            <div class="flex items-center gap-2">
-              <rs-button variant="secondary" @click="handleDownloadPDF('level3')">
-                <Icon name="material-symbols:picture-as-pdf" class="mr-2" size="1rem" />
-                Download PDF
-              </rs-button>
-              <rs-button variant="secondary" @click="handleDownloadCSV('level3')">
-                <Icon name="material-symbols:file-download" class="mr-2" size="1rem" />
-                Download CSV
-              </rs-button>
-              <rs-button variant="primary" @click="handleAdd('level3')">
-                <Icon name="material-symbols:add" class="mr-2" size="1rem" />
-                Add
-              </rs-button>
-            </div>
-          </div>
-        </div>
-      </template>
-    </rs-card>
-
-    <!-- List of PTJ Code - Level 4 Datatable -->
-    <rs-card v-if="selectedLevel3">
-      <template #header>
-        <div class="text-lg font-semibold">List of PTJ Code - Level 4</div>
-      </template>
-      <template #body>
-        <div class="space-y-4">
-          <div class="flex justify-between items-center gap-4 mb-4">
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Display:</label>
-              <FormKit
-                type="select"
-                v-model="pageSizes.level4"
-                :options="[
-                  { label: '5', value: 5 },
-                  { label: '10', value: 10 },
-                  { label: '25', value: 25 },
-                  { label: '50', value: 50 },
-                  { label: '100', value: 100 },
-                ]"
-                outer-class="mb-0"
-              />
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Search:</label>
-              <div class="flex gap-2">
-                <FormKit
-                  v-model="searchKeywords.level4"
-                  type="text"
-                  placeholder="Search..."
-                  outer-class="mb-0"
-                  input-class="!h-8 !text-sm !px-2"
-                  inner-class="!h-8"
-                >
-                  <template #suffix>
-                    <button
-                      v-if="searchKeywords.level4"
-                      type="button"
-                      @click="searchKeywords.level4 = ''"
-                      class="px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    >
-                      <Icon
-                        name="material-symbols:close"
-                        class="!w-3.5 !h-3.5 text-gray-500"
-                      />
-                    </button>
-                  </template>
-                </FormKit>
-                <rs-button
-                  class="!px-3"
-                  style="height: 40px; min-height: 40px;"
-                  @click="handleFilter('level4')"
-                >
-                  <Icon
-                    name="ic:outline-filter-alt"
-                    size="1rem"
-                  />
-                </rs-button>
-              </div>
-            </div>
-          </div>
-          <div class="level4-table-wrapper" :style="{ maxHeight: level4List.length > 10 ? '600px' : 'auto', overflowY: level4List.length > 10 ? 'auto' : 'visible' }">
-            <div v-if="loading.level4" class="text-center py-8">
-              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-            <rs-table
-              v-else
-              :data="level4List"
-              :field="['No', 'PTJ Code', 'PTJ Desc (Malay)', 'Code Parent', 'Region', 'Country', 'Status', 'Action']"
-              :options="{
-                variant: 'primary',
-                striped: false,
-                bordered: false,
-                borderless: true,
-              }"
-              :optionsAdvanced="{
-                sortable: true,
-                filterable: false,
-                responsive: false,
-                outsideBorder: false,
-              }"
-              advanced
-              :pageSize="pageSizes.level4"
-            >
-              <template v-slot:No="data">
-                {{ data.value.no }}
-              </template>
-              <template v-slot:PTJCode="data">
-                {{ data.value['PTJ Code'] }}
-              </template>
-              <template v-slot:PTJDescMalay="data">
-                {{ data.value['PTJ Desc (Malay)'] }}
-              </template>
-              <template v-slot:CodeParent="data">
-                {{ data.value['Code Parent'] }}
-              </template>
-              <template v-slot:Region="data">
-                {{ data.value.Region }}
-              </template>
-              <template v-slot:Country="data">
-                {{ data.value.Country }}
-              </template>
-              <template v-slot:Status="data">
-                <span
-                  :class="{
-                    'text-green-600 dark:text-green-400': data.value.Status === 'ACTIVE',
-                    'text-red-600 dark:text-red-400': data.value.Status === 'INACTIVE',
-                  }"
-                >
-                  {{ data.value.Status }}
-                </span>
-              </template>
-              <template v-slot:Action="data">
-                <div class="flex gap-2 justify-end">
-                  <button
-                    @click="handleView('level4', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="View"
-                  >
-                    <Icon name="material-symbols:visibility" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleEdit('level4', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Edit"
-                  >
-                    <Icon name="material-symbols:edit" class="text-gray-600 dark:text-gray-400" size="20" />
-                  </button>
-                  <button
-                    @click="handleDelete('level4', data.value)"
-                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    title="Delete"
-                  >
-                    <Icon name="material-symbols:delete" class="text-red-600 dark:text-red-400" size="20" />
-                  </button>
-                </div>
-              </template>
-            </rs-table>
-          </div>
-          <div class="flex justify-between items-center pt-2">
-            <div class="text-sm text-gray-600 dark:text-gray-400">
-              {{ level4List.length }} records
-            </div>
-            <div class="flex items-center gap-2">
-              <rs-button variant="secondary" @click="handleDownloadPDF('level4')">
-                <Icon name="material-symbols:picture-as-pdf" class="mr-2" size="1rem" />
-                Download PDF
-              </rs-button>
-              <rs-button variant="secondary" @click="handleDownloadCSV('level4')">
-                <Icon name="material-symbols:file-download" class="mr-2" size="1rem" />
-                Download CSV
-              </rs-button>
-              <rs-button variant="primary" @click="handleAdd('level4')">
-                <Icon name="material-symbols:add" class="mr-2" size="1rem" />
-                Add
-              </rs-button>
-            </div>
-          </div>
-        </div>
-      </template>
-    </rs-card>
-
-    <!-- Smart Filter Modals -->
-    <template v-for="level in ['level1', 'level2', 'level3', 'level4']" :key="level">
-      <rs-modal
-        v-model="showSmartFilter[level]"
-        :title="`Smart Filter - ${level.toUpperCase()}`"
-        size="md"
-        dialog-class="smart-filter-modal-custom"
-        :overlay-close="true"
-        :hide-footer="false"
-        position="center"
+    <!-- Action Menu Dropdown (3-dot menu + right-click) -->
+    <Teleport to="body">
+      <div
+        v-if="actionMenu.show"
+        class="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[150px]"
+        :style="{ left: actionMenu.x + 'px', top: actionMenu.y + 'px' }"
       >
-        <template #header>
-          <div class="flex items-center justify-between w-full bg-primary text-white px-3 py-2 rounded-t-lg smart-filter-modal-header">
-            <h4 class="text-base font-semibold text-white">Smart Filter</h4>
-            <Icon
-              @click="handleFilterClose(level)"
-              class="hover:text-gray-200 cursor-pointer text-white"
-              name="ic:round-close"
-              size="18"
-            />
-          </div>
-        </template>
-        <template #body>
-          <FormKit type="form" :actions="false">
-            <div class="space-y-4">
-              <div class="flex items-center gap-4">
-                <label class="w-32 text-sm font-medium">Status:</label>
-                <div class="flex-1 relative">
-                  <FormKit
-                    v-model="smartFilters[level].oun_status"
-                    type="select"
-                    :options="statusOptions"
-                    placeholder="Select Status"
-                    outer-class="mb-0"
-                  />
-                  <button
-                    v-if="smartFilters[level].oun_status"
-                    type="button"
-                    @click="smartFilters[level].oun_status = ''"
-                    class="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                  >
-                    <Icon
-                      name="material-symbols:close"
-                      class="!w-4 !h-4 text-gray-500"
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </FormKit>
-        </template>
-        <template #footer>
-          <div class="flex justify-end gap-3">
-            <rs-button variant="danger" @click="handleFilterReset(level)">
-              Reset
-            </rs-button>
-            <rs-button variant="primary" @click="handleFilterOk(level)">
-              Ok
-            </rs-button>
-          </div>
-        </template>
-      </rs-modal>
-    </template>
+        <button
+          @click="handleView(actionMenu.levelKey, actionMenu.item); closeActionMenu();"
+          class="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <Icon name="material-symbols:visibility" size="15" class="text-gray-500" /> View
+        </button>
+        <button
+          @click="handleEdit(actionMenu.levelKey, actionMenu.item); closeActionMenu();"
+          class="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <Icon name="material-symbols:edit" size="15" class="text-gray-500" /> Edit
+        </button>
+        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+        <button
+          @click="handleDelete(actionMenu.levelKey, actionMenu.item); closeActionMenu();"
+          class="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+        >
+          <Icon name="material-symbols:delete" size="15" /> Delete
+        </button>
+      </div>
+    </Teleport>
 
-    <!-- Add/Edit Modals for all levels -->
-    <template v-for="level in ['level1', 'level2', 'level3', 'level4']" :key="level">
-      <rs-modal
-        v-model="showModals[level]"
-        :title="`PTJ Code ${level.replace('level', 'Level ')}`"
-        size="lg"
-        dialog-class="account-modal-custom"
-        :overlay-close="true"
-        :hide-footer="false"
-        position="center"
+    <!-- Download Menu Dropdown -->
+    <Teleport to="body">
+      <div
+        v-if="downloadMenu.show"
+        class="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[170px]"
+        :style="{ left: downloadMenu.x + 'px', top: downloadMenu.y + 'px' }"
+        @click.stop
       >
-        <template #header>
-          <div class="flex items-center justify-between w-full bg-primary text-white px-3 py-2 rounded-t-lg account-modal-header">
-            <h4 class="text-base font-semibold text-white">
-              {{ isViewMode[level] ? `View PTJ Code ${level.replace('level', 'Level ')}` : (isEditMode[level] ? `Edit PTJ Code ${level.replace('level', 'Level ')}` : `Add PTJ Code ${level.replace('level', 'Level ')}`) }}
-            </h4>
-            <Icon
-              @click="handleCancel(level)"
-              class="hover:text-gray-200 cursor-pointer text-white"
-              name="ic:round-close"
-              size="18"
-            />
-          </div>
-        </template>
-        <template #body>
-          <FormKit type="form" :actions="false">
-            <div class="space-y-2 py-2">
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">PTJ Code<span class="text-red-500">*</span>:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.oun_code"
-                    type="text"
-                    :disabled="isViewMode[level] || isEditMode[level]"
-                    validation="required"
-                    validation-visibility="dirty"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">PTJ Desc (Malay)<span class="text-red-500">*</span>:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.oun_desc"
-                    type="text"
-                    :disabled="isViewMode[level]"
-                    validation="required"
-                    validation-visibility="dirty"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">PTJ Desc (English):</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.oun_desc_bi"
-                    type="text"
-                    :disabled="isViewMode[level]"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">Organization Code<span class="text-red-500">*</span>:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.org_code"
-                    type="text"
-                    :disabled="isViewMode[level]"
-                    validation="required"
-                    validation-visibility="dirty"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">Organization Desc:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.org_desc"
-                    type="text"
-                    :disabled="isViewMode[level]"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div v-if="level !== 'level1'" class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">Code Parent:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.oun_code_parent"
-                    type="text"
-                    :disabled="true"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">Status<span class="text-red-500">*</span>:</label>
-                <div class="flex-1 relative">
-                  <FormKit
-                    v-model="ptjForm.oun_status"
-                    type="select"
-                    :options="statusOptions"
-                    :disabled="isViewMode[level]"
-                    validation="required"
-                    validation-visibility="dirty"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">PTJ Short Name:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.oun_shortname"
-                    type="text"
-                    :disabled="isViewMode[level]"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div v-if="level === 'level3' || level === 'level4'" class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">Region:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.oun_region"
-                    type="text"
-                    :disabled="isViewMode[level]"
-                    outer-class="mb-0"
-                  />
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="w-40 text-xs font-medium">Country:</label>
-                <div class="flex-1">
-                  <FormKit
-                    v-model="ptjForm.cny_country_code"
-                    type="text"
-                    :disabled="isViewMode[level]"
-                    outer-class="mb-0"
-                  />
-                </div>
+        <button
+          @click="handleDownloadPDF(downloadMenu.colKey); closeDownloadMenu();"
+          class="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <Icon name="material-symbols:picture-as-pdf" size="15" class="text-red-500" /> Download PDF
+        </button>
+        <button
+          @click="handleDownloadCSV(downloadMenu.colKey); closeDownloadMenu();"
+          class="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <Icon name="material-symbols:file-download" size="15" class="text-green-500" /> Download CSV
+        </button>
+        <button
+          @click="handleDownloadExcel(downloadMenu.colKey); closeDownloadMenu();"
+          class="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <Icon name="material-symbols:table-chart" size="15" class="text-blue-500" /> Download Excel
+        </button>
+      </div>
+    </Teleport>
+
+    <!-- Add/Edit/View Modal -->
+    <rs-modal
+      v-model="showModal"
+      :title="modalTitle"
+      size="lg"
+      dialog-class="ptj-modal-custom"
+      :overlay-close="true"
+      :hide-footer="false"
+      position="center"
+    >
+      <template #header>
+        <div class="flex items-center justify-between w-full bg-primary text-white px-3 py-2 rounded-t-lg ptj-modal-header">
+          <h4 class="text-base font-semibold text-white">{{ modalTitle }}</h4>
+          <Icon
+            @click="handleCancel"
+            class="hover:text-gray-200 cursor-pointer text-white"
+            name="ic:round-close"
+            size="18"
+          />
+        </div>
+      </template>
+      <template #body>
+        <FormKit type="form" :actions="false">
+          <div class="space-y-2 py-2">
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">PTJ Code<span class="text-red-500">*</span>:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.oun_code" type="text" :disabled="isViewMode || isEditMode" validation="required" validation-visibility="dirty" outer-class="mb-0" />
               </div>
             </div>
-          </FormKit>
-        </template>
-        <template #footer>
-          <div class="flex justify-end gap-2 py-2">
-            <rs-button variant="danger" size="sm" @click="handleCancel(level)">
-              {{ isViewMode[level] ? 'Close' : 'Cancel' }}
-            </rs-button>
-            <rs-button v-if="!isViewMode[level]" variant="primary" size="sm" @click="handleSave(level)">
-              Save
-            </rs-button>
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">PTJ Desc (Malay)<span class="text-red-500">*</span>:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.oun_desc" type="text" :disabled="isViewMode" validation="required" validation-visibility="dirty" outer-class="mb-0" />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">PTJ Desc (English):</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.oun_desc_bi" type="text" :disabled="isViewMode" outer-class="mb-0" />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">Organization Code:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.org_code" type="text" :disabled="isViewMode" outer-class="mb-0" />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">Organization Desc:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.org_desc" type="text" :disabled="isViewMode" outer-class="mb-0" />
+              </div>
+            </div>
+            <div v-if="modalLevel !== 'level1'" class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">Code Parent:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.oun_code_parent" type="text" :disabled="true" outer-class="mb-0" />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">Status<span class="text-red-500">*</span>:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.oun_status" type="select" :options="statusOptions" :disabled="isViewMode" validation="required" validation-visibility="dirty" outer-class="mb-0" />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">PTJ Short Name:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.oun_shortname" type="text" :disabled="isViewMode" outer-class="mb-0" />
+              </div>
+            </div>
+            <div v-if="modalLevel === 'level3' || modalLevel === 'level4'" class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">Region:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.oun_region" type="text" :disabled="isViewMode" outer-class="mb-0" />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="w-40 text-xs font-medium">Country:</label>
+              <div class="flex-1">
+                <FormKit v-model="ptjForm.cny_country_code" type="text" :disabled="isViewMode" outer-class="mb-0" />
+              </div>
+            </div>
           </div>
-        </template>
-      </rs-modal>
-    </template>
+        </FormKit>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2 py-2">
+          <rs-button variant="danger" size="sm" @click="handleCancel">
+            {{ isViewMode ? 'Close' : 'Cancel' }}
+          </rs-button>
+          <rs-button v-if="!isViewMode" variant="primary" size="sm" @click="handleSave">
+            Save
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
   </div>
 </template>
 
 <style scoped>
-/* Hide default table header since we're using custom header */
-.level1-table-wrapper :deep(.table-header),
-.level2-table-wrapper :deep(.table-header),
-.level3-table-wrapper :deep(.table-header),
-.level4-table-wrapper :deep(.table-header) {
-  display: none;
+/* Finder browser container */
+.finder-browser {
+  min-height: 500px;
+  max-height: calc(100vh - 280px);
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.5rem;
+  background: white;
 }
 
-/* Blue column headers */
-.level1-table-wrapper :deep(th),
-.level2-table-wrapper :deep(th),
-.level3-table-wrapper :deep(th),
-.level4-table-wrapper :deep(th) {
-  background-color: #3b82f6 !important;
-  color: white !important;
+.dark .finder-browser {
+  border-color: rgb(55 65 81);
+  background: rgb(17 24 39);
 }
 
-/* Modal custom styles */
-.account-modal-custom {
-  width: 600px !important;
+/* Column styling */
+.finder-column {
+  min-height: 100%;
 }
 
-.account-modal-custom .modal-header {
-  padding: 0 !important;
-  position: relative;
-  overflow: hidden;
+.finder-column-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(209 213 219) transparent;
 }
 
-.account-modal-custom .account-modal-header {
-  width: 100% !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  box-sizing: border-box;
+.finder-column-body::-webkit-scrollbar {
+  width: 4px;
 }
 
-/* Ensure Smart Filter modal header matches Account modal styling */
-.smart-filter-modal-custom .modal-header {
-  padding: 0 !important;
-  position: relative;
-  overflow: hidden;
+.finder-column-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.smart-filter-modal-custom .smart-filter-modal-header {
-  width: 100% !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  box-sizing: border-box;
+.finder-column-body::-webkit-scrollbar-thumb {
+  background-color: rgb(209 213 219);
+  border-radius: 2px;
+}
+
+.dark .finder-column-body::-webkit-scrollbar-thumb {
+  background-color: rgb(75 85 99);
+}
+
+/* Resize handle */
+.finder-resize-handle {
+  z-index: 10;
+}
+
+.finder-resize-handle:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.finder-resize-handle:active {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* Item hover animation */
+.finder-item {
+  transition: background-color 0.1s ease;
 }
 </style>
 
 <style>
-/* Modal styles must be non-scoped because modal is teleported to body */
-/* Hide all direct children of modal-header except the custom header */
-.account-modal-custom .modal-header > *:not(.account-modal-header) {
+/* Modal styles (non-scoped because modal is teleported to body) */
+.ptj-modal-custom {
+  width: 600px !important;
+}
+
+.ptj-modal-custom .modal-header {
+  padding: 0 !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.ptj-modal-custom .ptj-modal-header {
+  width: 100% !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+}
+
+.ptj-modal-custom .modal-header > *:not(.ptj-modal-header) {
   display: none !important;
 }
 
-/* Ensure custom header is visible */
-.account-modal-custom .modal-header > .account-modal-header {
-  display: flex !important;
-}
-
-/* Hide all direct children of modal-header except the custom header for Smart Filter */
-.smart-filter-modal-custom .modal-header > *:not(.smart-filter-modal-header) {
-  display: none !important;
-}
-
-/* Ensure custom header is visible for Smart Filter */
-.smart-filter-modal-custom .modal-header > .smart-filter-modal-header {
+.ptj-modal-custom .modal-header > .ptj-modal-header {
   display: flex !important;
 }
 </style>

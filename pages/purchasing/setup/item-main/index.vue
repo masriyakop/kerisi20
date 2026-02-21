@@ -13,6 +13,15 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
+const pageName = "Item Main";
+const moduleName = "Purchasing";
+const pageBreadcrumbText = "Dashboard > Purchasing > Setup > Item Main";
+const { logDeleteConfirmationPrompt, updateMessageLogAction } = useMessageLog({
+  pageName,
+  moduleName,
+  pageBreadcrumbText,
+});
+
 // Top filter: Search Group
 const groupLookup = ref("PO");
 
@@ -643,6 +652,9 @@ const handleCancel = (level) => {
 };
 
 const handleDelete = async (level, item) => {
+  const messageText = "Are you sure? You won't be able to revert this!";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: "You won't be able to revert this!",
@@ -652,6 +664,8 @@ const handleDelete = async (level, item) => {
     cancelButtonColor: "#3085d6",
     confirmButtonText: "Yes, delete it!",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {

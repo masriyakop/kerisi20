@@ -1,6 +1,9 @@
-/* RS Badge Component */
+/* RS Badge Component - Monochrome Compact */
 .badge {
-  @apply inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-semibold leading-none;
+  @apply inline-flex items-center justify-center font-medium leading-none;
+  padding: 0.125rem 0.5rem; /* 2px 8px */
+  font-size: var(--font-size-xs, 0.6875rem);
+  border-radius: var(--rounded-badge, 0.75rem);
 }
 
 .badge.badge-primary {
@@ -28,5 +31,16 @@
 }
 
 .badge.badge-disabled {
-  @apply bg-gray-300 text-gray-600;
+  background-color: rgb(var(--bg-1));
+  color: rgb(var(--text-color));
+  opacity: 0.6;
+}
+
+/* Outline badge variants */
+.badge.badge-outline-primary {
+  @apply bg-transparent border border-primary text-primary;
+}
+
+.badge.badge-outline-secondary {
+  @apply bg-transparent border border-secondary text-secondary;
 }

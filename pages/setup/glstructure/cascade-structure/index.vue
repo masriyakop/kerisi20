@@ -13,9 +13,19 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
+const pageName = "Cascade Structure";
+const moduleName = "Setup";
+const pageBreadcrumbText = "Dashboard > Setup > GL Structure Setup > Cascade Structure";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName,
+  moduleName,
+  pageBreadcrumbText,
+});
+
 // Table data
 const cascadeList = ref([]);
 const loading = ref(false);
+const datatableRef = ref(null);
 
 // Search and filter state
 const searchKeyword = ref("");
@@ -593,23 +603,41 @@ const handleAdd = async () => {
   showCascadeModal.value = true;
 };
 
-// Download PDF function
-const handleDownloadPDF = () => {
-  $swal.fire({
-    title: "Info",
-    text: "PDF download functionality will be implemented",
-    icon: "info",
-  });
-};
-
-// Download CSV function
-const handleDownloadCSV = () => {
-  $swal.fire({
-    title: "Info",
-    text: "CSV download functionality will be implemented",
-    icon: "info",
-  });
-};
+// Datatable features (Save/Load Template, Ungroup/Group, Generate API, Download PDF/CSV)
+const {
+  templateFileInputRef,
+  exportConfigRef,
+  isGrouped,
+  showGenerateApiModal,
+  apiOutputType,
+  generateApiLoading,
+  handleSaveTemplate,
+  handleLoadTemplate,
+  onTemplateFileChange,
+  handleGenerateApi,
+  handleGenerateApiProceed,
+  handleCloseGenerateApiModal,
+  handleUngroupList,
+  handleGroupList,
+  handleDownloadPDF,
+  handleDownloadCSV,
+} = useDatatableFeatures({
+  pageName: "Cascade Structure",
+  apiDataPath: "/api/setup/cascade-structure",
+  defaultExportColumns: ["Fund", "Fund Desc", "Activity", "Activity Description", "PTJ", "PTJ Description", "Cost Center", "Cost Center Description", "Status"],
+  getFilteredList: () => filteredCascadeList.value,
+  datatableRef,
+  searchKeyword,
+  smartFilter,
+  applyFilters,
+  getLookupLabel: (opts, val) => {
+    if (!opts || !Array.isArray(opts) || val == null || val === "") return val ?? "";
+    const opt = opts.find((o) => String(o.value) === String(val) || String(o.label) === String(val));
+    return opt ? opt.label : val;
+  },
+  smartFilterLabels: { fty_fund_type_sm: "Fund", activity_smptj: "Activity", activity_smou: "Activity", oun_codePTJ: "PTJ", costcenter_sm: "Cost Center", ouc_status: "Status" },
+  smartFilterOptionsLookup: { ouc_status: statusOptions },
+});
 
 // Save Cascade Structure
 const handleSaveCascadeStructure = async () => {
@@ -662,13 +690,16 @@ const handleSaveCascadeStructure = async () => {
     }
 
     if (response.data.value?.statusCode === 200 || response.data.value?.statusCode === 201) {
+      const successMessage = isEditMode.value ? "Success. Cascade Structure updated successfully" : "Success. Cascade Structure is created successfully";
       $swal.fire({
         title: "Success",
-        text: isEditMode.value ? "Cascade structure updated successfully" : "Cascade structure created successfully",
+        text: successMessage,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
+      if (isEditMode.value) await logUpdateSuccess(successMessage, "Cascade Structure updated");
+      else await logCreateSuccess(successMessage, "Cascade Structure created");
       
       // Refresh data from API
       await fetchCascadeStructures();
@@ -728,6 +759,9 @@ const handleCancelCascadeStructure = () => {
 
 // Delete function
 const handleDelete = async (item) => {
+  const messageText = "Are you sure? Do you want to delete this cascade structure?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: `Do you want to delete this cascade structure?`,
@@ -738,6 +772,8 @@ const handleDelete = async (item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
@@ -781,11 +817,38 @@ const handleDelete = async (item) => {
 
 <template>
   <div class="space-y-6">
+    <input
+      ref="templateFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden"
+      @change="onTemplateFileChange"
+    />
     <LayoutsBreadcrumb />
 
     <rs-card>
       <template #header>
-        <div class="text-lg font-semibold">Cascade Structure</div>
+        <div class="flex justify-between items-center">
+          <div class="text-lg font-semibold">Cascade Structure</div>
+          <rs-dropdown
+            variant="secondary-text"
+            size="sm"
+            :hideChevron="true"
+            position="bottom"
+            textAlign="right"
+            itemSize="11rem"
+            class="[&_.button]:!h-8 [&_.button]:!min-h-8 [&_.button]:!p-1 [&_.button]:!border-0 [&_.button]:!min-w-0"
+          >
+            <template #title>
+              <Icon name="mdi:dots-vertical" size="1rem" />
+            </template>
+            <rs-dropdown-item @click="handleSaveTemplate">Save Template</rs-dropdown-item>
+            <rs-dropdown-item @click="handleLoadTemplate">Load Template</rs-dropdown-item>
+            <rs-dropdown-item v-if="isGrouped" @click="handleUngroupList">Ungroup List</rs-dropdown-item>
+            <rs-dropdown-item v-else @click="handleGroupList">Group List</rs-dropdown-item>
+            <rs-dropdown-item @click="handleGenerateApi">Generate API</rs-dropdown-item>
+          </rs-dropdown>
+        </div>
       </template>
       <template #body>
         <div class="space-y-4">
@@ -856,7 +919,9 @@ const handleDelete = async (item) => {
             </div>
             <rs-table
               v-else
-              :key="`cascade-structure-table-${searchKeyword || 'all'}-${pageSize}`"
+              ref="datatableRef"
+              :exportConfigRef="exportConfigRef"
+              :key="`cascade-structure-table`"
               :data="filteredCascadeList"
               :field="['No', 'Fund', 'Fund Desc', 'Activity', 'Activity Description', 'PTJ', 'PTJ Description', 'Cost Center', 'Cost Center Description', 'Status', 'Action']"
               :options="{
@@ -873,6 +938,11 @@ const handleDelete = async (item) => {
               }"
               advanced
               :pageSize="pageSize"
+              :hideTableSearch="true"
+              :hideTablePageSize="true"
+              :columnMovable="true"
+              :columnHideShow="true"
+              :columnGroupingList="isGrouped"
             >
               <template v-slot:No="data">
                 {{ data.value.no }}
@@ -974,6 +1044,43 @@ const handleDelete = async (item) => {
         </div>
       </template>
     </rs-card>
+
+    <!-- Generate API Modal -->
+    <rs-modal
+      v-model="showGenerateApiModal"
+      title="Generate API"
+      size="md"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Output Type</label>
+            <FormKit
+              v-model="apiOutputType"
+              type="select"
+              :options="[
+                { label: 'JSON', value: 'JSON' },
+                { label: 'PDF', value: 'PDF' },
+                { label: 'CSV', value: 'CSV' },
+                { label: 'EXCEL', value: 'EXCEL' },
+              ]"
+              outer-class="mb-0"
+            />
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            A unique API key will be generated. Use the URL to access data in the selected format. JSON and PDF display in browser; CSV and Excel download.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <rs-button variant="secondary" @click="handleCloseGenerateApiModal">Cancel</rs-button>
+          <rs-button variant="primary" :disabled="generateApiLoading" @click="handleGenerateApiProceed">
+            {{ generateApiLoading ? 'Generating...' : 'Proceed' }}
+          </rs-button>
+        </div>
+      </template>
+    </rs-modal>
 
     <!-- Smart Filter Modal -->
     <rs-modal

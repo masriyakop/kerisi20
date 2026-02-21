@@ -1,4 +1,6 @@
 <script setup>
+import { useMessageLog } from "~/composables/useMessageLog";
+
 definePageMeta({
   title: "Structure Budget List",
   middleware: ["auth"],
@@ -25,9 +27,21 @@ definePageMeta({
 
 const { $swal } = useNuxtApp();
 
+const pageNameForLog = "Structure Budget List";
+const moduleNameForLog = "Structurebudgetlist";
+const pageBreadcrumbTextForLog = "Page Editor > Pengujianmuka > Structurebudgetlist > Structure Budget List";
+const { logDeleteConfirmationPrompt, updateMessageLogAction, logCreateSuccess, logUpdateSuccess } = useMessageLog({
+  pageName: pageNameForLog,
+  moduleName: moduleNameForLog,
+  pageBreadcrumbText: pageBreadcrumbTextForLog,
+});
+
 // Table data
 const structurebudgetlistList = ref([]);
 const loading = ref(false);
+
+// Collapse state for datatable
+
 
 // Search and filter state
 const searchKeyword = ref("");
@@ -281,6 +295,7 @@ const formatDateForInput = (value) => {
     return '';
   }
 };
+
 
 // Fetch data function - fetches all data, rs-table handles pagination client-side
 const fetchData = async () => {
@@ -849,6 +864,9 @@ const handleAdd = () => {
 
 // Delete function
 const handleDelete = async (item) => {
+  const messageText = "Are you sure? Do you want to delete this record?";
+  const logId = await logDeleteConfirmationPrompt(messageText);
+
   const result = await $swal.fire({
     title: "Are you sure?",
     text: `Do you want to delete this record?`,
@@ -859,6 +877,8 @@ const handleDelete = async (item) => {
     confirmButtonText: "Yes, delete it!",
     cancelButtonText: "Cancel",
   });
+
+  await updateMessageLogAction(logId, result.isConfirmed ? "Yes, delete it!" : "Cancel");
 
   if (result.isConfirmed) {
     try {
@@ -924,13 +944,20 @@ const handleSaveStructurebudgetlist = async () => {
     }
 
     if (response.data.value?.statusCode === 200 || response.data.value?.statusCode === 201) {
+      const successMessage = isEditMode.value ? "Success. " + pageNameForLog + " updated successfully" : "Success. " + pageNameForLog + " is created successfully";
       $swal.fire({
         title: "Success",
-        text: isEditMode.value ? "Record updated successfully" : "Record created successfully",
+        text: successMessage,
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
       });
+
+      if (isEditMode.value) {
+        await logUpdateSuccess(successMessage, pageNameForLog + " updated");
+      } else {
+        await logCreateSuccess(successMessage, pageNameForLog + " created");
+      }
       
       // Refresh data from API
       await fetchData();
@@ -1110,7 +1137,7 @@ onMounted(() => {
           </div>
 
           <!-- Table with built-in search and pagination -->
-          <div class="structurebudgetlist-table-wrapper">
+          <div class="structurebudgetlist-table-wrapper d-none">
             <div v-if="loading" class="text-center py-8">
               <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               <p class="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
@@ -1119,12 +1146,13 @@ onMounted(() => {
               v-else
               :key="`structurebudgetlist-table-${searchKeyword || 'all'}-${pageSize}`"
               :data="filteredStructurebudgetlistList"
-              :field='["no","ID","Fund","PTJ","Cost Centre","Activity","Activity Description","Budget Code","Budget Code Description","Deficit Budget","Status","Year","Action"]'
+              :field='["no","ID","Fund","PTJ","Cost Centre","Activity","Activity Description","Budget Code","Deficit Budget","Status","Year","Action"]'
               :options="{
                 variant: 'primary',
                 striped: false,
                 bordered: false,
                 borderless: true,
+                
               }"
               :optionsAdvanced="{
                 sortable: true,
@@ -1134,6 +1162,9 @@ onMounted(() => {
               }"
               advanced
               :pageSize="pageSize"
+              
+              :freezeLeft="2"
+              :freezeRight="1"
             >
               <template v-slot:no="data">
                 {{ data.value.no }}
@@ -1142,7 +1173,7 @@ onMounted(() => {
                 {{ data.value.ID }}
               </template>
               <template v-slot:Fund="data">
-                {{ getLookupLabel(FundOptions, data.value.Fund) }}
+                <div class="font-bold">{{ getLookupLabel(FundOptions, data.value.Fund) }}</div>
               </template>
               <template v-slot:PTJ="data">
                 {{ getLookupLabel(PTJOptions, data.value.PTJ) }}
@@ -1154,16 +1185,13 @@ onMounted(() => {
                 {{ getLookupLabel(ActivityOptions, data.value.Activity) }}
               </template>
               <template v-slot:ActivityDescription="data">
-                {{ data.value["Activity Description"] }}
+                <div class="large-column">{{ data.value["Activity Description"] }}</div>
               </template>
               <template v-slot:BudgetCode="data">
-                {{ getLookupLabel(BudgetCodeOptions, data.value["Budget Code"]) }}
-              </template>
-              <template v-slot:BudgetCodeDescription="data">
-                {{ data.value["Budget Code Description"] }}
+                <div class="text-nowrap">{{ getLookupLabel(BudgetCodeOptions, data.value["Budget Code"]) }}</div>
               </template>
               <template v-slot:DeficitBudget="data">
-                {{ getLookupLabel(deficit_budgetOptions, data.value["Deficit Budget"]) }}
+                <div class="text-center">{{ getLookupLabel(deficit_budgetOptions, data.value["Deficit Budget"]) }}</div>
               </template>
               <template v-slot:Status="data">
                 {{ getLookupLabel(StatusOptions, data.value.Status) }}
@@ -1237,6 +1265,7 @@ onMounted(() => {
       </template>
     </rs-card>
 
+
     <!-- Add/Edit Modal -->
     <rs-modal
       v-model="showStructurebudgetlistModal"
@@ -1274,6 +1303,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Select Fund"
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1290,6 +1320,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Select PTJ"
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1306,6 +1337,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Select Cost Centre"
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1322,6 +1354,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Select Activity"
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1338,6 +1371,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Select Budget Code"
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1354,6 +1388,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Enter Year "
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1370,6 +1405,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Select Status"
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1386,6 +1422,7 @@ onMounted(() => {
                   :disabled="isViewMode"
                   placeholder="Select Deficit"
                   outer-class="mb-0"
+                  
                   validation="required"
                   validation-visibility="dirty"
                 />
@@ -1410,6 +1447,37 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Compact radio/checkbox: horizontal layout, less spacing */
+.compact-radio-checkbox :deep(ul),
+.compact-radio-checkbox :deep([class*="options"]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0 0;
+}
+.compact-radio-checkbox :deep(li) {
+  margin: 0;
+  padding: 0;
+}
+.compact-radio-checkbox :deep(label) {
+  margin-bottom: 0;
+}
+/* Text format from component item cssClass (format-uppercase, format-initcap, format-lowercase) */
+.format-uppercase :deep(input),
+.format-uppercase :deep(textarea) {
+  text-transform: uppercase;
+}
+.format-lowercase :deep(input),
+.format-lowercase :deep(textarea) {
+  text-transform: lowercase;
+}
+.format-initcap :deep(input),
+.format-initcap :deep(textarea) {
+  text-transform: capitalize;
+}
 /* Hide default table header since we're using custom header */
 .structurebudgetlist-table-wrapper :deep(.table-header) {
   display: none;

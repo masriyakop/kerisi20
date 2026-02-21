@@ -1,11 +1,8 @@
-import prisma from "~/server/utils/prisma";
+import prisma from "~/server/utils/prisma2";
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    const page = parseInt(query.page) || 1;
-    const pageSize = parseInt(query.pageSize) || 10;
-    const skip = (page - 1) * pageSize;
 
     // Build where clause from query parameters
     const where = {};
@@ -16,67 +13,58 @@ export default defineEventHandler(async (event) => {
     // Add search filter if provided
     if (query.search && query.search.trim() !== "") {
       where.OR = [
-        { lde_value: { contains: query.search, mode: 'insensitive' } },
-        { lde_description: { contains: query.search, mode: 'insensitive' } },
-        { lde_status: { contains: query.search, mode: 'insensitive' } }
+        { lde_value: { contains: query.search } },
+        { lde_description: { contains: query.search } },
+        { lde_status: { contains: query.search } }
       ];
     }
 
     // Add top filter conditions (accept both aliases and original field names)
-    if (query.lde_value) {
-      where.lde_value = { contains: query.lde_value, mode: 'insensitive' };
+    // Note: Using contains without mode for cross-database compatibility
+    if (query.lde_value || query.lde_value || query.lde_value) {
+      const filterValue = query.lde_value || query.lde_value || query.lde_value;
+      where.lde_value = { contains: filterValue };
     }
-    if (query.lde_value) {
-      where.lde_value = { contains: query.lde_value, mode: 'insensitive' };
+    if (query.lde_description || query.lde_description || query.lde_description) {
+      const filterValue = query.lde_description || query.lde_description || query.lde_description;
+      where.lde_description = { contains: filterValue };
     }
-    if (query.lde_description) {
-      where.lde_description = { contains: query.lde_description, mode: 'insensitive' };
+    if (query.lde_status || query.lde_status || query.lde_status) {
+      const filterValue = query.lde_status || query.lde_status || query.lde_status;
+      where.lde_status = { contains: filterValue };
     }
-    if (query.lde_description) {
-      where.lde_description = { contains: query.lde_description, mode: 'insensitive' };
+    if (query.Code || query.Code || query.lde_value) {
+      const filterValue = query.Code || query.Code || query.lde_value;
+      where.lde_value = { contains: filterValue };
     }
-    if (query.lde_status) {
-      where.lde_status = { contains: query.lde_status, mode: 'insensitive' };
+    if (query.Description || query.Description || query.lde_description) {
+      const filterValue = query.Description || query.Description || query.lde_description;
+      where.lde_description = { contains: filterValue };
     }
-    if (query.lde_status) {
-      where.lde_status = { contains: query.lde_status, mode: 'insensitive' };
+    if (query.Status || query.Status || query.lde_status) {
+      const filterValue = query.Status || query.Status || query.lde_status;
+      where.lde_status = { contains: filterValue };
     }
-    if (query.Code) {
-      where.lde_value = { contains: query.Code, mode: 'insensitive' };
-    }
-    if (query.lde_value) {
-      where.lde_value = { contains: query.lde_value, mode: 'insensitive' };
-    }
-    if (query.Description) {
-      where.lde_description = { contains: query.Description, mode: 'insensitive' };
-    }
-    if (query.lde_description) {
-      where.lde_description = { contains: query.lde_description, mode: 'insensitive' };
-    }
-    if (query.Status) {
-      where.lde_status = { contains: query.Status, mode: 'insensitive' };
-    }
-    if (query.lde_status) {
-      where.lde_status = { contains: query.lde_status, mode: 'insensitive' };
-    }
+    
+    // Add Top Filter component field conditions (tf_xxx fields)
+    
 
-    // Get total count
-    const total = await prisma.lookup_details.count({ where });
-
-    // Get data
-    const data = await prisma.lookup_details.findMany({
+    // Get data - no pagination, rs-table handles it client-side
+    const data = await prisma.lookup_details_adm.findMany({
       where,
-      skip,
-      take: pageSize,
       orderBy: { lde_id: 'desc' },
+      
     });
 
     // Map fields to aliases for frontend and ensure primary key is included
     const mappedData = data.map((item) => {
       const mapped = { ...item };
       mapped.Code = item.lde_value;
+      mapped.code = item.lde_value;
       mapped.Description = item.lde_description;
+      mapped.description = item.lde_description;
       mapped.Status = item.lde_status;
+      mapped.status = item.lde_status;
       // Ensure primary key is available (even if not in SELECT)
       if (!mapped.lde_id && item.lde_id) {
         mapped.lde_id = item.lde_id;
@@ -90,12 +78,6 @@ export default defineEventHandler(async (event) => {
       statusCode: 200,
       message: "Data fetched successfully",
       data: mappedData,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-      },
     };
   } catch (error) {
     console.error("Error fetching data:", error);

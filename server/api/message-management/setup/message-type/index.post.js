@@ -1,4 +1,4 @@
-import prisma from "~/server/utils/prisma";
+import prisma from "~/server/utils/prisma2";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -10,8 +10,11 @@ export default defineEventHandler(async (event) => {
     if (body.lde_description !== undefined) createData.lde_description = body.lde_description;
     if (body.lde_status !== undefined) createData.lde_status = body.lde_status;
     if (body.Code !== undefined) createData.lde_value = body.Code;
+    if (body.code !== undefined && createData.lde_value === undefined) createData.lde_value = body.code;
     if (body.Description !== undefined) createData.lde_description = body.Description;
+    if (body.description !== undefined && createData.lde_description === undefined) createData.lde_description = body.description;
     if (body.Status !== undefined) createData.lde_status = body.Status;
+    if (body.status !== undefined && createData.lde_status === undefined) createData.lde_status = body.status;
     // Copy any fields that match original field names
     Object.keys(body).forEach(key => {
       if (key.startsWith('lde_') && key !== 'lde_id') {
@@ -23,11 +26,27 @@ export default defineEventHandler(async (event) => {
     // Add WHERE conditions from queryMapping
     createData.lma_code_name = "MESSAGE_TYPE"; // From queryMapping WHERE clause
 
+    // Auto-generate primary key if not provided (for non-auto-increment Int primary keys)
+    if (!createData.lde_id || createData.lde_id === 0) {
+      const maxRecord = await prisma.lookup_details_adm.findFirst({
+        orderBy: { lde_id: 'desc' },
+        select: { lde_id: true },
+      });
+      createData.lde_id = maxRecord ? maxRecord.lde_id + 1 : 1;
+    }
+
     // Validate required fields (check createData after mapping and WHERE conditions are applied)
     // No required fields validation needed
 
+    // Convert year fields to string if they are numbers (database may expect String for year fields)
+    Object.keys(createData).forEach(key => {
+      if ((key.toLowerCase().includes('year') || key.toLowerCase().includes('_year')) && typeof createData[key] === 'number') {
+        createData[key] = String(createData[key]);
+      }
+    });
+
     // Create record
-    const data = await prisma.lookup_details.create({
+    const data = await prisma.lookup_details_adm.create({
       data: createData,
     });
 

@@ -26,6 +26,10 @@ const props = defineProps({
     type: String,
     default: "10rem",
   },
+  hideChevron: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const isOpen = ref(false);
@@ -189,15 +193,15 @@ onUnmounted(() => {
       <slot v-if="$slots.title" name="title"></slot>
       <span v-else>{{ props.title }}</span>
       <Icon
-        v-if="position === 'bottom'"
+        v-if="!hideChevron && position === 'bottom'"
         name="ic:outline-keyboard-arrow-down"
       />
       <Icon
-        v-else-if="position === 'top'"
+        v-else-if="!hideChevron && position === 'top'"
         name="ic:outline-keyboard-arrow-up"
       />
-      <Icon v-else-if="position === 'left'" name="ic:outline-chevron-left" />
-      <Icon v-else-if="position === 'right'" name="ic:outline-chevron-right" />
+      <Icon v-else-if="!hideChevron && position === 'left'" name="ic:outline-chevron-left" />
+      <Icon v-else-if="!hideChevron && position === 'right'" name="ic:outline-chevron-right" />
     </button>
     <section
       class="dropdown-section"
