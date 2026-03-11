@@ -1,7 +1,7 @@
+import { callAiEngine } from "~/server/utils/aiEngine";
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
-  const ollamaUrl = config.ollama?.url || "http://localhost:11434";
-  const ollamaModel = config.ollama?.model || "deepseek-v3.1:671b-cloud";
 
   try {
     const body = await readBody(event);
@@ -15,30 +15,25 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    const response = await $fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      body: {
-        model: ollamaModel,
-        messages,
-        stream: false,
-      },
-      timeout: 120000, // 2 min for large models
-    });
+    const { content, model } = await callAiEngine(config, messages);
 
     return {
       statusCode: 200,
-      message: response.message?.content ?? "",
-      model: response.model,
-      done: response.done,
+      message: content ?? "",
+      model,
+      done: true,
     };
   } catch (error) {
-    console.error("[ai-chat] Ollama proxy error:", error?.message || error);
+    const engine = config.openai?.apiKey?.trim?.() && config.openai?.model?.trim?.() ? "OpenAI" : "Ollama";
+    console.error(`[ai-chat] ${engine} error:`, error?.message || error);
 
     const status = error?.statusCode || error?.response?.status || 500;
     const message =
       error?.data?.error ||
       error?.message ||
-      "Failed to get response from AI. Ensure Ollama is running and the model is available.";
+      (config.openai?.apiKey?.trim?.() && config.openai?.model?.trim?.()
+        ? "Failed to get response from OpenAI. Check your API key and model."
+        : "Failed to get response from AI. Ensure Ollama is running and the model is available.");
 
     setResponseStatus(event, status);
     return {

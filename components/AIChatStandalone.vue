@@ -1,5 +1,10 @@
 <script setup>
-const { isOpen, close } = useAIChat();
+/**
+ * Standalone AI Chat - URL-accessible version (/ai-chat).
+ * Same functionality as AIChatPopup (KERINA) but uses useAIChatStandalone.
+ * No changes to existing KERINA chat.
+ */
+const { isOpen, close } = useAIChatStandalone();
 const { render: renderMarkdown } = useMarkdown();
 
 const MIN_WIDTH = 480;
@@ -299,7 +304,7 @@ async function submitQuestion() {
           </button>
           <div class="ai-chat-header-content">
             <img src="@/assets/img/kerina-mascot.png" alt="KERINA" class="ai-chat-mascot" />
-            <p class="ai-chat-greeting">Assalamualaikum, I'm AINA the AI Navigation Assistant</p>
+            <p class="ai-chat-greeting">Assalamualaikum, I'm KERINA the KERISI Navigation Assistant</p>
           </div>
         </div>
 

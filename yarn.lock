@@ -6231,6 +6231,11 @@ make-dir@^3.1.0, make-dir@~3.1.0:
   dependencies:
     semver "^6.0.0"
 
+marked@^17.0.3:
+  version "17.0.3"
+  resolved "https://registry.npmjs.org/marked/-/marked-17.0.3.tgz"
+  integrity sha512-jt1v2ObpyOKR8p4XaUJVk3YWRJ5n+i4+rjQopxvV32rSndTJXvIzuUdWWIy/1pFQMkQmvTXawzDNqOH/CUmx6A==
+
 maska@^1.5.0:
   version "1.5.2"
   resolved "https://registry.npmjs.org/maska/-/maska-1.5.2.tgz"

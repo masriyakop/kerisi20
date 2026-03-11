@@ -13,6 +13,10 @@ export default defineNuxtConfig({
       url: process.env.OLLAMA_URL || "http://localhost:11434",
       model: process.env.OLLAMA_MODEL || "deepseek-v3.1:671b-cloud",
     },
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY || "",
+      model: process.env.OPENAI_MODEL || "gpt-4.1",
+    },
   },
   modules: [
     "@nuxtjs/tailwindcss",

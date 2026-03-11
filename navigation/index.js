@@ -1132,6 +1132,13 @@ export default [
         "path": "/devtool/guide",
         "icon": "material-symbols:menu-book-rounded",
         "child": []
+      },
+      {
+        "title": "Kitchen Sink",
+        "path": "/kitchen-sink",
+        "icon": "material-symbols:kitchen",
+        "child": [],
+        "meta": {}
       }
     ],
     "meta": {
