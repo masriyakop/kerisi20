@@ -758,6 +758,73 @@ const handleEdit = (row) => {
 </template>
 
 <style scoped>
+.budget-monitoring-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Freeze first three columns: No, Structure Budget, Budget Code Desc */
+.budget-monitoring-table-wrapper :deep(table) {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.budget-monitoring-table-wrapper :deep(th),
+.budget-monitoring-table-wrapper :deep(td) {
+  background-color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* First column - No */
+.budget-monitoring-table-wrapper :deep(th:nth-child(1)),
+.budget-monitoring-table-wrapper :deep(td:nth-child(1)) {
+  position: sticky;
+  left: 0;
+  z-index: 5; /* keep above scrolling cells */
+  background-color: #ffffff;
+}
+
+/* Second column - Structure Budget */
+.budget-monitoring-table-wrapper :deep(th:nth-child(2)),
+.budget-monitoring-table-wrapper :deep(td:nth-child(2)) {
+  position: sticky;
+  left: 4.5rem; /* approximate width of first column */
+  z-index: 5;
+  background-color: #ffffff;
+}
+
+/* Third column - Budget Code Desc */
+.budget-monitoring-table-wrapper :deep(th:nth-child(3)),
+.budget-monitoring-table-wrapper :deep(td:nth-child(3)) {
+  position: sticky;
+  left: 20rem; /* slightly more than first + second columns to avoid overlap */
+  z-index: 5;
+  background-color: #ffffff;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+}
+
+/* Fourth column - Activity Desc (wrap text, not sticky) */
+.budget-monitoring-table-wrapper :deep(th:nth-child(4)),
+.budget-monitoring-table-wrapper :deep(td:nth-child(4)) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+}
+
+/* Last column - Action (freeze on the right) */
+.budget-monitoring-table-wrapper :deep(th:last-child),
+.budget-monitoring-table-wrapper :deep(td:last-child) {
+  position: sticky;
+  right: 0;
+  z-index: 5;
+  background-color: #ffffff;
+}
+
 /* Hide default table header since we're using custom header */
 .budget-monitoring-table-wrapper :deep(.table-header) {
   display: none;
