@@ -124,6 +124,8 @@ const fetchTableData = async (tabName) => {
       pageSize: pageSize.value,
     };
 
+    console.log("queryParams:", queryParams);
+
     // Add the specific query parameter for each tab
     const queryParamMap = {
       initial: "dt_initial",
@@ -144,6 +146,7 @@ const fetchTableData = async (tabName) => {
     });
 
     if (data.value?.statusCode === 200) {
+      console.log("zzzzz:", data.value.data);
       const config = columnConfigs[tabName];
       tableData.value[tabName] = (data.value.data || []).map((item, index) => {
         const row = { no: index + 1 };
@@ -173,7 +176,10 @@ const fetchTableData = async (tabName) => {
         
         // Keep original data for actions
         row._original = item;
+        console.log("row:", row);
         return row;
+
+
       });
     } else {
       $swal.fire({

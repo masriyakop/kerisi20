@@ -42,19 +42,19 @@ export default defineEventHandler(async (event) => {
 
     // Handle different query types
     if (query.dt_initial) {
-      return await getBudgetInitial(structureBudgetWhere, year, search, skip, pageSize);
+      return await getBudgetInitial(structureBudgetWhere, year, search, skip, pageSize, page);
     } else if (query.dt_increment_decrement) {
-      return await getIncrementDecrement(structureBudgetWhere, year, search, skip, pageSize);
+      return await getIncrementDecrement(structureBudgetWhere, year, search, skip, pageSize, page);
     } else if (query.dt_virement) {
-      return await getVirement(structureBudgetWhere, year, search, skip, pageSize);
+      return await getVirement(structureBudgetWhere, year, search, skip, pageSize, page);
     } else if (query.prerequisition_v2) {
-      return await getPreRequisition(structureBudgetWhere, year, search, skip, pageSize);
+      return await getPreRequisition(structureBudgetWhere, year, search, skip, pageSize, page);
     } else if (query.dt_requisition_v2) {
-      return await getRequisition(structureBudgetWhere, year, search, skip, pageSize);
+      return await getRequisition(structureBudgetWhere, year, search, skip, pageSize, page);
     } else if (query.dt_comitment_v2) {
-      return await getCommitment(structureBudgetWhere, year, search, skip, pageSize);
+      return await getCommitment(structureBudgetWhere, year, search, skip, pageSize, page);
     } else if (query.dt_expenses_v2) {
-      return await getExpenses(structureBudgetWhere, year, search, skip, pageSize);
+      return await getExpenses(structureBudgetWhere, year, search, skip, pageSize, page);
     }
 
     return {
@@ -81,7 +81,7 @@ export default defineEventHandler(async (event) => {
 });
 
 // Budget Initial
-async function getBudgetInitial(structureBudgetWhere, year, search, skip, pageSize) {
+async function getBudgetInitial(structureBudgetWhere, year, search, skip, pageSize, page) {
   try {
     // Ensure year is a string
     const yearStr = String(year);
@@ -277,7 +277,7 @@ async function getBudgetInitial(structureBudgetWhere, year, search, skip, pageSi
 }
 
 // Increment / Decrement
-async function getIncrementDecrement(structureBudgetWhere, year, search, skip, pageSize) {
+async function getIncrementDecrement(structureBudgetWhere, year, search, skip, pageSize, page) {
   try {
     const structureBudgets = await prisma.structure_budget.findMany({
       where: structureBudgetWhere,
@@ -373,7 +373,7 @@ async function getIncrementDecrement(structureBudgetWhere, year, search, skip, p
 }
 
 // Virement
-async function getVirement(structureBudgetWhere, year, search, skip, pageSize) {
+async function getVirement(structureBudgetWhere, year, search, skip, pageSize, page) {
   try {
     const structureBudgets = await prisma.structure_budget.findMany({
       where: structureBudgetWhere,
@@ -466,7 +466,7 @@ async function getVirement(structureBudgetWhere, year, search, skip, pageSize) {
 }
 
 // Pre Requisition
-async function getPreRequisition(structureBudgetWhere, year, search, skip, pageSize) {
+async function getPreRequisition(structureBudgetWhere, year, search, skip, pageSize, page) {
   try {
     const structureBudgets = await prisma.structure_budget.findMany({
       where: structureBudgetWhere,
@@ -542,7 +542,7 @@ async function getPreRequisition(structureBudgetWhere, year, search, skip, pageS
 }
 
 // Requisition
-async function getRequisition(structureBudgetWhere, year, search, skip, pageSize) {
+async function getRequisition(structureBudgetWhere, year, search, skip, pageSize, page) {
   try {
     const structureBudgets = await prisma.structure_budget.findMany({
       where: structureBudgetWhere,
@@ -642,7 +642,7 @@ async function getRequisition(structureBudgetWhere, year, search, skip, pageSize
 }
 
 // Commitment
-async function getCommitment(structureBudgetWhere, year, search, skip, pageSize) {
+async function getCommitment(structureBudgetWhere, year, search, skip, pageSize, page) {
   try {
     const structureBudgets = await prisma.structure_budget.findMany({
       where: structureBudgetWhere,
@@ -741,7 +741,7 @@ async function getCommitment(structureBudgetWhere, year, search, skip, pageSize)
 }
 
 // Expenses
-async function getExpenses(structureBudgetWhere, year, search, skip, pageSize) {
+async function getExpenses(structureBudgetWhere, year, search, skip, pageSize, page) {
   try {
     const structureBudgets = await prisma.structure_budget.findMany({
       where: structureBudgetWhere,

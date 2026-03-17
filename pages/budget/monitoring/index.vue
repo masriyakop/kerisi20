@@ -191,7 +191,6 @@ const fetchMonitoring = async () => {
           enumerable: false,
           writable: false,
         });
-        
         return rowData;
       });
       applyFilters();
@@ -222,6 +221,91 @@ onMounted(() => {
 // Handle search - trigger fetch with top filter
 const handleSearch = () => {
   fetchMonitoring();
+};
+
+// Export helpers: build data without Action column and strip HTML from values
+const getExportData = () => {
+  return filteredMonitoringList.value.map(({ Action, no, ...rest }) => {
+    return Object.fromEntries(
+      Object.entries(rest).map(([k, v]) => [
+        k,
+        typeof v === "string" ? v.replace(/<br\s*\/?>/gi, " ") : v != null ? v : "",
+      ])
+    );
+  });
+};
+
+const { exportCSV, exportPDF } = useReportExport();
+
+const handleDownloadCSV = () => {
+  const data = getExportData();
+  if (!data.length) {
+    $swal.fire({
+      title: "No Data",
+      text: "There is no data to export",
+      icon: "warning",
+    });
+    return;
+  }
+  exportCSV(data, "Budget Monitoring");
+  $swal.fire({
+    title: "Success",
+    text: "CSV downloaded successfully",
+    icon: "success",
+    timer: 2000,
+    showConfirmButton: false,
+  });
+};
+
+const handleDownloadPDF = async () => {
+  const data = getExportData();
+  if (!data.length) {
+    $swal.fire({
+      title: "No Data",
+      text: "There is no data to export",
+      icon: "warning",
+    });
+    return;
+  }
+  try {
+    await exportPDF(data, "Budget Monitoring");
+    $swal.fire({
+      title: "Success",
+      text: "PDF downloaded successfully",
+      icon: "success",
+      timer: 2000,
+      showConfirmButton: false,
+    });
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    $swal.fire({
+      title: "Error",
+      text: "Failed to generate PDF",
+      icon: "error",
+    });
+  }
+};
+
+// Export single row as CSV (for row-level download icon)
+const handleDownloadRow = (row) => {
+  if (!row || typeof row !== "object") return;
+  const { Action, no, ...rest } = row;
+  const singleRow = [
+    Object.fromEntries(
+      Object.entries(rest).map(([k, v]) => [
+        k,
+        typeof v === "string" ? v.replace(/<br\s*\/?>/gi, " ") : v != null ? v : "",
+      ])
+    ),
+  ];
+  exportCSV(singleRow, "Budget Monitoring - Row");
+  $swal.fire({
+    title: "Success",
+    text: "CSV downloaded successfully",
+    icon: "success",
+    timer: 2000,
+    showConfirmButton: false,
+  });
 };
 
 // Format currency
@@ -324,6 +408,8 @@ const handleView = (row) => {
       });
       return;
     }
+
+    console.log("hello:");
     
     // Extract bdg_year from budget model (not from filter field)
     const bdg_year = originalData.bdg_year || originalData.bdgYear || "";
@@ -552,6 +638,14 @@ const handleEdit = (row) => {
             </div>
           </div>
           <div class="flex justify-end gap-3">
+            <rs-button variant="secondary" @click="handleDownloadCSV">
+              <Icon name="material-symbols:file-download" class="mr-1" size="1rem" />
+              Download CSV
+            </rs-button>
+            <rs-button variant="secondary" @click="handleDownloadPDF">
+              <Icon name="material-symbols:description" class="mr-1" size="1rem" />
+              Download PDF
+            </rs-button>
             <rs-button variant="primary" @click="handleSearch">
               <Icon name="material-symbols:search" class="mr-1" size="1rem" />
               Search
@@ -737,6 +831,17 @@ const handleEdit = (row) => {
                     <Icon
                       name="material-symbols:visibility"
                       class="text-blue-600 dark:text-blue-400"
+                      size="20"
+                    />
+                  </button>
+                  <button
+                    @click="handleDownloadRow(data.value)"
+                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                    title="Download as CSV"
+                  >
+                    <Icon
+                      name="material-symbols:download"
+                      class="text-green-600 dark:text-green-400"
                       size="20"
                     />
                   </button>
