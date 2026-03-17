@@ -124,7 +124,6 @@ const fetchTableData = async (tabName) => {
       pageSize: pageSize.value,
     };
 
-    console.log("queryParams:", queryParams);
 
     // Add the specific query parameter for each tab
     const queryParamMap = {
@@ -146,7 +145,6 @@ const fetchTableData = async (tabName) => {
     });
 
     if (data.value?.statusCode === 200) {
-      console.log("zzzzz:", data.value.data);
       const config = columnConfigs[tabName];
       tableData.value[tabName] = (data.value.data || []).map((item, index) => {
         const row = { no: index + 1 };
@@ -174,9 +172,13 @@ const fetchTableData = async (tabName) => {
           }
         });
         
-        // Keep original data for actions
-        row._original = item;
-        console.log("row:", row);
+        // Keep original data for actions (non-enumerable so it doesn't show as a table column)
+        Object.defineProperty(row, "_original", {
+          value: item,
+          enumerable: false,
+          writable: false,
+        });
+
         return row;
 
 

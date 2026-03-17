@@ -235,7 +235,54 @@ const getExportData = () => {
   });
 };
 
-const { exportCSV, exportPDF } = useReportExport();
+const { exportCSV } = useReportExport();
+
+// Format date for PDF header (e.g. 17/03/2026 01:37PM)
+const formatPDFDateTime = () => {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, "0");
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const year = now.getFullYear();
+  const hours = now.getHours();
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 || 12;
+  return `${day}/${month}/${year} ${String(displayHours).padStart(2, "0")}:${minutes}${ampm}`;
+};
+
+// 12 columns for List of Monitoring PDF (matching reference layout)
+const MONITORING_PDF_COLUMNS = [
+  "No",
+  "Structure Budget",
+  "Opening (RM)",
+  "Initial (RM)",
+  "Inc/Dec (RM)",
+  "Virement (RM)",
+  "Allocated (RM)",
+  "Lock (RM)",
+  "Request (RM)",
+  "Commit (RM)",
+  "Expenses (RM)",
+  "Balance (RM)",
+];
+
+// Build PDF table rows from API export data (raw SQL result)
+const buildMonitoringPDFTableRows = (apiRows) => {
+  return (apiRows || []).map((row, index) => [
+    (index + 1).toString(),
+    row.structure_budget ?? "",
+    toCurrency(row.Opening),
+    toCurrency(row.Initial),
+    toCurrency(row.bdg_additional_amt),
+    toCurrency(row.Virement),
+    toCurrency(row.Allocated),
+    toCurrency(row.bdg_lock_amt),
+    toCurrency(row.Request),
+    toCurrency(row.Commit),
+    toCurrency(row.Expenses),
+    toCurrency(row.Balance),
+  ]);
+};
 
 const handleDownloadCSV = () => {
   const data = getExportData();
@@ -258,17 +305,175 @@ const handleDownloadCSV = () => {
 };
 
 const handleDownloadPDF = async () => {
-  const data = getExportData();
-  if (!data.length) {
-    $swal.fire({
-      title: "No Data",
-      text: "There is no data to export",
-      icon: "warning",
-    });
-    return;
-  }
+  $swal.fire({
+    title: "Generating PDF...",
+    text: "Please wait.",
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => {
+      $swal.showLoading();
+    },
+  });
   try {
-    await exportPDF(data, "Budget Monitoring");
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const f = topFilter.value;
+    const query = {
+      year: f.year || undefined,
+      fundType: f.fundType || undefined,
+      oun_code: f.oun_code || undefined,
+      ccr_costcentre_top: f.ccr_costcentre_top || undefined,
+      at_activity_code_top: f.at_activity_code_top || undefined,
+    };
+    const { data: res } = await useFetch("/api/budget/monitoring/export-pdf", {
+      method: "GET",
+      query,
+      initialCache: false,
+    });
+
+    const apiData = res.value?.data ?? [];
+    if (!Array.isArray(apiData) || apiData.length === 0) {
+      $swal.close();
+      $swal.fire({
+        title: "No Data",
+        text: res.value?.message || "There is no data to export for the selected filters.",
+        icon: "warning",
+      });
+      return;
+    }
+
+    const tableData = buildMonitoringPDFTableRows(apiData);
+    const totalRecords = tableData.length;
+
+    const jsPDFModule = await import("jspdf");
+    const jsPDF = jsPDFModule.default || jsPDFModule;
+    const autoTableModule = await import("jspdf-autotable");
+    const autoTable = autoTableModule.default || autoTableModule;
+    if (typeof autoTable !== "function") {
+      throw new Error("jspdf-autotable could not be loaded");
+    }
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    const formattedDate = formatPDFDateTime();
+
+    let logoHeight = 0;
+    try {
+      const logoUrl = "/img/logo/organization_logo.png";
+      const response = await fetch(logoUrl);
+      if (response.ok) {
+        const blob = await response.blob();
+        const logoData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read logo"));
+          reader.readAsDataURL(blob);
+        });
+        const img = await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error("Failed to load image"));
+          image.src = logoData;
+        });
+        const aspectRatio = img.width / img.height;
+        logoHeight = 12;
+        doc.addImage(logoData, "PNG", margin, margin, 12 * aspectRatio, 12);
+      }
+    } catch (e) {
+      logoHeight = 0;
+    }
+
+    const paramsY = margin + (logoHeight > 0 ? logoHeight + 4 : 0);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "normal");
+    doc.setTextColor(0, 0, 0);
+    const paramLines = [
+      `YEAR : ${f.year || "-"}`,
+      `FUND : ${f.fundType || "-"}`,
+      `PTJ LEVEL : ${f.oun_level || "-"}`,
+      `PTJ : ${f.oun_code || "-"}`,
+      `COST CENTRE : ${f.ccr_costcentre_top || "-"}`,
+      `ACTIVITY GROUP : ${f.activity_group || "-"}`,
+      `ACCOUNT SUBGROUP : ${f.activity_subgroup || "-"}`,
+      `ACTIVITY : ${f.at_activity_code_top || "-"}`,
+    ];
+    paramLines.forEach((line, i) => {
+      doc.text(line, margin, paramsY + 5 * (i + 1));
+    });
+
+    const titleY = paramsY + 5 * paramLines.length + 8;
+    doc.setFontSize(14);
+    doc.setFont(undefined, "bold");
+    doc.text("TOURISM MALAYSIA", pageWidth / 2 - doc.getTextWidth("TOURISM MALAYSIA") / 2, titleY);
+    doc.setFontSize(12);
+    doc.setFont(undefined, "normal");
+    doc.text("List of Monitoring", pageWidth / 2 - doc.getTextWidth("List of Monitoring") / 2, titleY + 6);
+
+    const tableStartY = titleY + 14;
+    const ROWS_PER_CHUNK = 80;
+    // Reserve right side for header (DATE, TOTAL RECORD, PAGE) so table does not overlap
+    const rightMarginForHeader = 58;
+    const baseOptions = {
+      margin: { left: margin, right: rightMarginForHeader },
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: {
+        fillColor: [70, 70, 70],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        halign: "center",
+      },
+      bodyStyles: { halign: "left" },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 10 },
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right" },
+        5: { halign: "right" },
+        6: { halign: "right" },
+        7: { halign: "right" },
+        8: { halign: "right" },
+        9: { halign: "right" },
+        10: { halign: "right" },
+        11: { halign: "right" },
+      },
+    };
+
+    let startY = tableStartY;
+    for (let i = 0; i < tableData.length; i += ROWS_PER_CHUNK) {
+      const chunk = tableData.slice(i, i + ROWS_PER_CHUNK);
+      const isFirst = i === 0;
+      autoTable(doc, {
+        head: isFirst ? [MONITORING_PDF_COLUMNS] : undefined,
+        body: chunk,
+        startY,
+        showHead: isFirst ? "firstPage" : "never",
+        ...baseOptions,
+      });
+      startY = doc.lastAutoTable.finalY + 2;
+      if (i + ROWS_PER_CHUNK < tableData.length) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFontSize(9);
+      doc.setFont(undefined, "normal");
+      doc.setTextColor(0, 0, 0);
+      const dateText = `DATE : ${formattedDate}`;
+      const totalText = `TOTAL RECORD : ${totalRecords}`;
+      const pageText = `PAGE : ${p} of ${totalPages}`;
+      doc.text(dateText, pageWidth - margin - doc.getTextWidth(dateText), margin + 6);
+      doc.text(totalText, pageWidth - margin - doc.getTextWidth(totalText), margin + 12);
+      doc.text(pageText, pageWidth - margin - doc.getTextWidth(pageText), margin + 18);
+    }
+
+    doc.save(`List_of_Monitoring_${new Date().toISOString().split("T")[0]}.pdf`);
+    $swal.close();
     $swal.fire({
       title: "Success",
       text: "PDF downloaded successfully",
@@ -278,9 +483,10 @@ const handleDownloadPDF = async () => {
     });
   } catch (error) {
     console.error("Error generating PDF:", error);
+    $swal.close();
     $swal.fire({
       title: "Error",
-      text: "Failed to generate PDF",
+      text: error?.message || "Failed to generate PDF",
       icon: "error",
     });
   }

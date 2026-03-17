@@ -119,13 +119,27 @@ export function useReportExport() {
     const data = normalizeReportData(reportData);
     if (!data) return false;
 
-    const { default: jsPDF } = await import("jspdf");
-    const autoTable = (await import("jspdf-autotable")).default;
+    const numColumns = Object.keys(data[0]).length;
+    const useLandscape = numColumns > 12;
+    const fontSize = numColumns > 15 ? 7 : 9;
+
+    const jsPDFModule = await import("jspdf");
+    const jsPDF = jsPDFModule.default || jsPDFModule;
+    const autoTableModule = await import("jspdf-autotable");
+    const autoTable = autoTableModule.default || autoTableModule;
+
+    if (typeof autoTable !== "function") {
+      throw new Error("jspdf-autotable could not be loaded");
+    }
 
     const columns = getColumns(data);
     const formattedDateTime = getFormattedDateTime();
 
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const doc = new jsPDF({
+      orientation: useLandscape ? "landscape" : "portrait",
+      unit: "mm",
+      format: "a4",
+    });
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 10;
 
@@ -147,12 +161,10 @@ export function useReportExport() {
       return row;
     });
 
-    autoTable(doc, {
-      head: [["No.", ...columns]],
-      body: tableData,
-      startY: margin + 22,
+    const ROWS_PER_CHUNK = 80;
+    const baseOptions = {
       margin: { left: margin, right: margin },
-      styles: { fontSize: 9, cellPadding: 2 },
+      styles: { fontSize, cellPadding: 2 },
       headStyles: {
         fillColor: [59, 130, 246],
         textColor: [255, 255, 255],
@@ -162,7 +174,24 @@ export function useReportExport() {
       bodyStyles: { halign: "left" },
       columnStyles: { 0: { halign: "center", cellWidth: 15 } },
       alternateRowStyles: { fillColor: [245, 245, 245] },
-    });
+    };
+
+    let startY = margin + 22;
+    for (let i = 0; i < tableData.length; i += ROWS_PER_CHUNK) {
+      const chunk = tableData.slice(i, i + ROWS_PER_CHUNK);
+      const isFirstChunk = i === 0;
+      autoTable(doc, {
+        head: isFirstChunk ? [["No.", ...columns]] : undefined,
+        body: chunk,
+        startY,
+        showHead: isFirstChunk ? "firstPage" : "never",
+        ...baseOptions,
+      });
+      startY = doc.lastAutoTable.finalY + 2;
+      if (i + ROWS_PER_CHUNK < tableData.length) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
 
     doc.save(`KERISI_Report_${new Date().toISOString().split("T")[0]}.pdf`);
     return true;
