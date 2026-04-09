@@ -883,6 +883,561 @@ export default [
         "meta": {}
       },
       {
+        "title": "Account Payable",
+        "path": "/accountpayable",
+        "icon": "",
+        "child": [
+          {
+            "title": "Bill",
+            "path": "/accountpayable/bill",
+            "icon": "",
+            "child": [
+              {
+                "title": "Bill Cancel @ Knockoff Listing",
+                "path": "/accountpayable/bill/bill-cancel-knockoff-listing",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Bill Registration",
+                "path": "/accountpayable/bill/bill-registration",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Bill Registration Cancellation @ Knockoff",
+                "path": "/accountpayable/bill/bill-registration-cancellation-knockoff",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Journal Bill Cancel @ Knockoff",
+                "path": "/accountpayable/bill/journal-bill-cancel-knockoff",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Voucher",
+            "path": "/accountpayable/voucher",
+            "icon": "",
+            "child": [
+              {
+                "title": "Download Voucher By Reference",
+                "path": "/accountpayable/voucher/download-voucher-by-reference",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Download Voucher Supplier By Batch",
+                "path": "/accountpayable/voucher/download-voucher-supplier-by-batch",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Journal Voucher Cancel",
+                "path": "/accountpayable/voucher/journal-voucher-cancel",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Voucher Cancel",
+                "path": "/accountpayable/voucher/voucher-cancel",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Voucher Listing",
+                "path": "/accountpayable/voucher/voucher-listing",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Voucher Registration",
+                "path": "/accountpayable/voucher/voucher-registration",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Voucher Replace",
+                "path": "/accountpayable/voucher/voucher-replace",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Payment",
+            "path": "/accountpayable/payment",
+            "icon": "",
+            "child": [
+              {
+                "title": "Banker Cheque & Bank Draft",
+                "path": "/accountpayable/payment/banker-cheque-bank-draft",
+                "icon": "",
+                "child": [
+                  {
+                    "title": "Batch Listing",
+                    "path": "/accountpayable/payment/banker-cheque-bank-draft/batch-listing",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Preparation",
+                    "path": "/accountpayable/payment/banker-cheque-bank-draft/preparation",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Update Reference",
+                    "path": "/accountpayable/payment/banker-cheque-bank-draft/update-reference",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  }
+                ],
+                "meta": {}
+              },
+              {
+                "title": "Cheque",
+                "path": "/accountpayable/payment/cheque",
+                "icon": "",
+                "child": [
+                  {
+                    "title": "Approved Bank Cheque",
+                    "path": "/accountpayable/payment/cheque/approved-bank-cheque",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Bank Cheque To Print or To Cancel",
+                    "path": "/accountpayable/payment/cheque/bank-cheque-to-print-or-to-cancel",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Book Cheque Setup",
+                    "path": "/accountpayable/payment/cheque/book-cheque-setup",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Cheque Processing",
+                    "path": "/accountpayable/payment/cheque/cheque-processing",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Overall Bank Cheque Transaction",
+                    "path": "/accountpayable/payment/cheque/overall-bank-cheque-transaction",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  }
+                ],
+                "meta": {}
+              },
+              {
+                "title": "EFT",
+                "path": "/accountpayable/payment/eft",
+                "icon": "",
+                "child": [
+                  {
+                    "title": "Batching EFT",
+                    "path": "/accountpayable/payment/eft/batching-eft",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "EFT Preparation",
+                    "path": "/accountpayable/payment/eft/eft-preparation",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Payment Batch Form",
+                    "path": "/accountpayable/payment/eft/payment-batch-form",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Payment Batch List",
+                    "path": "/accountpayable/payment/eft/payment-batch-list",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Transfer Date",
+                    "path": "/accountpayable/payment/eft/transfer-date",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  }
+                ],
+                "meta": {}
+              },
+              {
+                "title": "Listing",
+                "path": "/accountpayable/payment/listing",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Other Payment (Update Payment Date)",
+                "path": "/accountpayable/payment/other-payment-update-payment-date",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Other Payment V2",
+                "path": "/accountpayable/payment/other-payment-v2",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Payment Notice",
+                "path": "/accountpayable/payment/payment-notice",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Payment Rejected",
+                "path": "/accountpayable/payment/payment-rejected",
+                "icon": "",
+                "child": [
+                  {
+                    "title": "Journal Payment Reject/Replace",
+                    "path": "/accountpayable/payment/payment-rejected/journal-payment-reject-replace",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Listing Reject",
+                    "path": "/accountpayable/payment/payment-rejected/listing-reject",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Reject/Replace Payment",
+                    "path": "/accountpayable/payment/payment-rejected/reject-replace-payment",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  }
+                ],
+                "meta": {}
+              },
+              {
+                "title": "Payroll Payment",
+                "path": "/accountpayable/payment/payroll-payment",
+                "icon": "",
+                "child": [
+                  {
+                    "title": "Listing Approved Batching EPY",
+                    "path": "/accountpayable/payment/payroll-payment/listing-approved-batching-epy",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  },
+                  {
+                    "title": "Other Payment",
+                    "path": "/accountpayable/payment/payroll-payment/other-payment",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  }
+                ],
+                "meta": {}
+              },
+              {
+                "title": "Print SAB By Batch",
+                "path": "/accountpayable/payment/print-sab-by-batch",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Integration",
+            "path": "/accountpayable/integration",
+            "icon": "",
+            "child": [
+              {
+                "title": "Cancellation",
+                "path": "/accountpayable/integration/cancellation",
+                "icon": "",
+                "child": [
+                  {
+                    "title": "BRF",
+                    "path": "/accountpayable/integration/cancellation/brf",
+                    "icon": "",
+                    "child": [],
+                    "meta": {}
+                  }
+                ],
+                "meta": {}
+              },
+              {
+                "title": "Loan Disbursement",
+                "path": "/accountpayable/integration/loan-disbursement",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Refund",
+                "path": "/accountpayable/integration/refund",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Payee Registration (Others)",
+            "path": "/accountpayable/payee-registration-others",
+            "icon": "",
+            "child": [],
+            "meta": {}
+          },
+          {
+            "title": "Account Bank Updated",
+            "path": "/accountpayable/account-bank-updated",
+            "icon": "",
+            "child": [],
+            "meta": {}
+          },
+          {
+            "title": "Account Bank by Payee",
+            "path": "/accountpayable/account-bank-by-payee",
+            "icon": "",
+            "child": [],
+            "meta": {}
+          },
+          {
+            "title": "Credit Note",
+            "path": "/accountpayable/credit-note",
+            "icon": "",
+            "child": [
+              {
+                "title": "Credit Note Cancellation",
+                "path": "/accountpayable/credit-note/credit-note-cancellation",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Credit Note Form",
+                "path": "/accountpayable/credit-note/credit-note-form",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Credit Note Listing",
+                "path": "/accountpayable/credit-note/credit-note-listing",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Journal Revaluation",
+            "path": "/accountpayable/journal-revaluation",
+            "icon": "",
+            "child": [
+              {
+                "title": "Journal Revaluation Process",
+                "path": "/accountpayable/journal-revaluation/journal-revaluation-process",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Money Transfer",
+            "path": "/accountpayable/money-transfer",
+            "icon": "",
+            "child": [
+              {
+                "title": "Generate Voucher Draft",
+                "path": "/accountpayable/money-transfer/generate-voucher-draft",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "List of Money Transfer",
+                "path": "/accountpayable/money-transfer/list-of-money-transfer",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "List of Voucher Money Transfer",
+                "path": "/accountpayable/money-transfer/list-of-voucher-money-transfer",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Notification",
+            "path": "/accountpayable/notification",
+            "icon": "",
+            "child": [
+              {
+                "title": "Historical Sender",
+                "path": "/accountpayable/notification/historical-sender",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Send Email",
+                "path": "/accountpayable/notification/send-email",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          },
+          {
+            "title": "Report",
+            "path": "/accountpayable/report",
+            "icon": "",
+            "child": [
+              {
+                "title": "Bilangan Hari Daftar Bil Belum Bayar",
+                "path": "/accountpayable/report/bilangan-hari-daftar-bil-belum-bayar",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Bill Report",
+                "path": "/accountpayable/report/bill-report",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Buku Daftar Terimaan",
+                "path": "/accountpayable/report/buku-daftar-terimaan",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Laporan Baucar Bayaran",
+                "path": "/accountpayable/report/laporan-baucar-bayaran",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Laporan Prestasi Pembayaran Bill",
+                "path": "/accountpayable/report/laporan-prestasi-pembayaran-bill",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Listing of Payee old",
+                "path": "/accountpayable/report/listing-of-payee-old",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Payee List Report",
+                "path": "/accountpayable/report/payee-list-report",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Payee List Report by PTJ",
+                "path": "/accountpayable/report/payee-list-report-by-ptj",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Payment Record",
+                "path": "/accountpayable/report/payment-record",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Pembayaran Bil dan Tuntutan",
+                "path": "/accountpayable/report/pembayaran-bil-dan-tuntutan",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "PTJ VOT Information",
+                "path": "/accountpayable/report/ptj-vot-information",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              },
+              {
+                "title": "Transaction History",
+                "path": "/accountpayable/report/transaction-history",
+                "icon": "",
+                "child": [],
+                "meta": {}
+              }
+            ],
+            "meta": {}
+          }
+        ],
+        "meta": {}
+      },
+      {
         "title": "General Ledger",
         "path": "/generalledger",
         "icon": "simple-icons:hyperledger",
@@ -895,6 +1450,60 @@ export default [
           }
         ],
         "meta": {}
+      },
+      {
+        "title": "cashbook",
+        "path": "/cashbook",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Account Receivable",
+        "path": "/accountreceivable",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Student Finance",
+        "path": "/studentfinance",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Payroll",
+        "path": "/payroll",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Project Monitoring",
+        "path": "/projectmonitoring",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Investment",
+        "path": "/investment",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Loan",
+        "path": "/loan",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Asset",
+        "path": "/asset",
+        "icon": "",
+        "child": []
+      },
+      {
+        "title": "Credit Control",
+        "path": "/creditcontrol",
+        "icon": "",
+        "child": []
       }
     ],
     "meta": {}
@@ -1148,5 +1757,61 @@ export default [
         ]
       }
     }
+  },
+  {
+    "header": "BF-BTN Pengurusan Bantuan",
+    "description": "",
+    "child": [
+      {
+        "title": "Program",
+        "icon": "iconamoon:component-fill",
+        "child": [
+          {
+            "title": "Senarai Program",
+            "icon": "iconamoon:arrow-right-2-duotone",
+            "path": "/BF-BTN/PG/DYMM/01-1",
+            "child": [],
+            "meta": {}
+          },
+          {
+            "title": "Senarai Program SJK",
+            "icon": "iconamoon:arrow-right-2-duotone",
+            "path": "/BF-BTN/PG/DYMM/01-1/sjk",
+            "child": [],
+            "meta": {}
+          },
+          {
+            "title": "Senarai Pengesahan Program",
+            "icon": "iconamoon:arrow-right-2-duotone",
+            "path": "/BF-BTN/PG/DYMM/02-1",
+            "child": [],
+            "meta": {}
+          },
+          {
+            "title": "Rekod Senarai Kehadiran",
+            "icon": "iconamoon:arrow-right-2-duotone",
+            "path": "/BF-BTN/PG/DYMM/12-1",
+            "child": [],
+            "meta": {}
+          },
+          {
+            "title": "Rekod Senarai Tuntutan",
+            "icon": "iconamoon:arrow-right-2-duotone",
+            "path": "/BF-BTN/PG/DYMM/14-1",
+            "child": [],
+            "meta": {}
+          }
+        ],
+        "meta": {}
+      }
+    ],
+    "meta": {
+      "auth": {
+        "role": [
+          "Developer",
+          "Bantuan"
+        ]
+      }
+    }
   }
-];
+]

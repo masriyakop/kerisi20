@@ -20,7 +20,6 @@ export default defineEventHandler(async (event) => {
         wpd_process_id: parseInt(body.wpd_process_id),
         wpd_status_code: body.wpd_status_code,
         wpd_reroute_process: body.wpd_reroute_process ?? null,
-        wpd_proc_to_exec: body.wpd_proc_to_exec ?? null,
         wpd_order: body.wpd_order ?? null,
         wpd_extended_field: body.wpd_status_desc
           ? { wpd_status_desc: body.wpd_status_desc }

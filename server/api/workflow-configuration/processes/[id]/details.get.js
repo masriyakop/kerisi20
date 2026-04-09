@@ -3,7 +3,7 @@ import prisma from "~/server/utils/prisma";
 /**
  * GET /api/workflow-configuration/processes/[id]/details
  * List process details for a given process id
- * Maps to: SELECT wpd_process_details_id, wpd_status_code, CONCAT_WS(...) wpd_status, wpd_reroute_process, wpd_proc_to_exec
+ * Maps to: SELECT wpd_process_details_id, wpd_status_code, CONCAT_WS(...) wpd_status, wpd_reroute_process
  * FROM wf_process_details WHERE wpd_process_id = ? ORDER BY wpd_order, wpd_status_code
  */
 export default defineEventHandler(async (event) => {
@@ -25,7 +25,6 @@ export default defineEventHandler(async (event) => {
         wpd_process_details_id: true,
         wpd_status_code: true,
         wpd_reroute_process: true,
-        wpd_proc_to_exec: true,
         wpd_order: true,
         wpd_extended_field: true,
       },
@@ -45,7 +44,6 @@ export default defineEventHandler(async (event) => {
         wpd_status: wpd_status || d.wpd_status_code || "",
         wpd_status_desc: desc,
         wpd_reroute_process: d.wpd_reroute_process,
-        wpd_proc_to_exec: d.wpd_proc_to_exec,
         wpd_order: d.wpd_order,
         wpd_extended_field: d.wpd_extended_field,
       };

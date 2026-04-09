@@ -32,7 +32,6 @@ export default defineEventHandler(async (event) => {
       data: {
         wpd_status_code: body.wpd_status_code,
         wpd_reroute_process: body.wpd_reroute_process ?? null,
-        wpd_proc_to_exec: body.wpd_proc_to_exec ?? null,
         wpd_order: body.wpd_order ?? null,
         wpd_extended_field: Object.keys(extendedField).length > 0 ? extendedField : null,
       },

@@ -24,6 +24,9 @@ const processDetails = ref([]);
 const authorizedRoles = ref([]);
 const detailsLoading = ref(false);
 const collapsedIds = ref(new Set());
+const orderedProcesses = ref([]);
+const draggingProcessId = ref(null);
+const isReorderingProcesses = ref(false);
 
 // Modals
 const showWorkflowModal = ref(false);
@@ -46,6 +49,14 @@ const workflowForm = ref({
   wfa_prevent_self_process: null,
   wfa_involve_posting: 1,
 });
+const isPreventSelfProcess = computed({
+  get: () =>
+    workflowForm.value.wfa_prevent_self_process === 1 ||
+    workflowForm.value.wfa_prevent_self_process === "1",
+  set: (value) => {
+    workflowForm.value.wfa_prevent_self_process = value ? 1 : null;
+  },
+});
 const processForm = ref({
   wfp_process_name: "",
   wfp_process_desc_bm: "",
@@ -59,11 +70,75 @@ const processForm = ref({
   wfp_is_by_ptj: null,
   wfp_is_allow_query: null,
 });
+const isByDivDept = computed({
+  get: () => processForm.value.wfp_is_by_ptj === 1 || processForm.value.wfp_is_by_ptj === "1",
+  set: (value) => {
+    processForm.value.wfp_is_by_ptj = value ? 1 : null;
+  },
+});
+const isProcessActive = computed({
+  get: () => processForm.value.wfp_status === 1 || processForm.value.wfp_status === "1",
+  set: (value) => {
+    processForm.value.wfp_status = value ? "1" : "0";
+  },
+});
+const isEmailNotificationEnabled = computed({
+  get: () =>
+    processForm.value.wfp_is_email_notification === 1 ||
+    processForm.value.wfp_is_email_notification === "1",
+  set: (value) => {
+    processForm.value.wfp_is_email_notification = value ? 1 : 0;
+  },
+});
+const isTodoNotificationEnabled = computed({
+  get: () =>
+    processForm.value.wfp_is_todo_notification === 1 ||
+    processForm.value.wfp_is_todo_notification === "1",
+  set: (value) => {
+    processForm.value.wfp_is_todo_notification = value ? 1 : 0;
+  },
+});
+
+const preventNonIntegerNumberKeys = (e) => {
+  if (["e", "E", "+", "-", ".", ","].includes(e.key)) {
+    e.preventDefault();
+  }
+};
+
+const preventNonIntegerPaste = (e) => {
+  const text = e.clipboardData?.getData("text") ?? "";
+  if (!text.trim()) return;
+  if (!/^\d+$/.test(text.trim())) {
+    e.preventDefault();
+  }
+};
+
+const normalizeProcessIntegerField = (field) => {
+  if (field === "wfp_duration_kpi") {
+    const v = processForm.value.wfp_duration_kpi;
+    if (v === "" || v === null || v === undefined) {
+      processForm.value.wfp_duration_kpi = null;
+      return;
+    }
+    const n = parseInt(String(v), 10);
+    processForm.value.wfp_duration_kpi = Number.isNaN(n) ? null : n;
+    return;
+  }
+  if (field === "wfp_sequence") {
+    const v = processForm.value.wfp_sequence;
+    if (v === "" || v === null || v === undefined) {
+      processForm.value.wfp_sequence = 0;
+      return;
+    }
+    const n = parseInt(String(v), 10);
+    processForm.value.wfp_sequence = Number.isNaN(n) ? 0 : n;
+  }
+};
+
 const processDetailForm = ref({
   wpd_status_code: "",
   wpd_status_desc: "",
   wpd_reroute_process: null,
-  wpd_proc_to_exec: "",
   wpd_order: null,
 });
 const authorizedRoleForm = ref({
@@ -87,6 +162,34 @@ const filteredWorkflows = computed(() => {
 const sortedProcesses = computed(() =>
   [...processes.value].sort((a, b) => (a.wfp_sequence || 0) - (b.wfp_sequence || 0))
 );
+
+/** Reroute targets: all active processes, label = workflow title + ' - ' + process name (see reroute-process-options API) */
+const rerouteProcessOptions = ref([]);
+
+const fetchRerouteProcessOptions = async () => {
+  try {
+    const { data } = await useFetch("/api/workflow-configuration/reroute-process-options", {
+      method: "GET",
+      initialCache: false,
+    });
+    if (data.value?.statusCode === 200) {
+      rerouteProcessOptions.value = data.value.data || [];
+    } else {
+      rerouteProcessOptions.value = [];
+    }
+  } catch (e) {
+    console.error("Error fetching reroute process options:", e);
+    rerouteProcessOptions.value = [];
+  }
+};
+
+const rerouteProcessSelectOptions = computed(() => [
+  { label: "— None —", value: null },
+  ...rerouteProcessOptions.value.map((row) => ({
+    label: row.description,
+    value: row.id,
+  })),
+]);
 
 // Fetch workflows
 const fetchWorkflows = async () => {
@@ -115,6 +218,7 @@ const fetchWorkflows = async () => {
 const fetchProcesses = async (code) => {
   if (!code) {
     processes.value = [];
+    orderedProcesses.value = [];
     selectedProcess.value = null;
     processDetails.value = [];
     authorizedRoles.value = [];
@@ -128,6 +232,7 @@ const fetchProcesses = async (code) => {
     });
     if (data.value?.statusCode === 200) {
       processes.value = data.value.data || [];
+      orderedProcesses.value = [...sortedProcesses.value];
       selectedProcess.value = null;
       processDetails.value = [];
       authorizedRoles.value = [];
@@ -135,6 +240,7 @@ const fetchProcesses = async (code) => {
   } catch (error) {
     console.error("Error fetching processes:", error);
     processes.value = [];
+    orderedProcesses.value = [];
   } finally {
     processesLoading.value = false;
   }
@@ -184,6 +290,93 @@ const handleSelectWorkflow = (wf) => {
 const handleSelectProcess = (proc) => {
   selectedProcess.value = proc;
   fetchProcessDetailsAndRoles(proc?.wfp_process_id);
+};
+
+const handleProcessDragStart = (event, proc) => {
+  draggingProcessId.value = proc.wfp_process_id;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(proc.wfp_process_id));
+  }
+};
+
+const handleProcessDragOver = (event) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move";
+  }
+};
+
+const handleProcessDrop = (event, targetProc) => {
+  event.preventDefault();
+  const sourceId = Number(event.dataTransfer?.getData("text/plain") || draggingProcessId.value);
+  const targetId = targetProc?.wfp_process_id;
+  if (!sourceId || !targetId || sourceId === targetId) return;
+
+  const fromIndex = orderedProcesses.value.findIndex((item) => item.wfp_process_id === sourceId);
+  const toIndex = orderedProcesses.value.findIndex((item) => item.wfp_process_id === targetId);
+  if (fromIndex < 0 || toIndex < 0) return;
+
+  const next = [...orderedProcesses.value];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  orderedProcesses.value = next;
+  persistProcessSequence(next);
+};
+
+const handleProcessDragEnd = () => {
+  draggingProcessId.value = null;
+};
+
+const persistProcessSequence = async (list) => {
+  if (!selectedWorkflow.value || isReorderingProcesses.value) return;
+
+  const updates = list
+    .map((proc, index) => ({
+      ...proc,
+      wfp_sequence: index + 1,
+    }))
+    .filter((proc, index) => (list[index]?.wfp_sequence ?? 0) !== proc.wfp_sequence);
+
+  if (updates.length === 0) return;
+
+  try {
+    isReorderingProcesses.value = true;
+    orderedProcesses.value = list.map((proc, index) => ({
+      ...proc,
+      wfp_sequence: index + 1,
+    }));
+
+    await Promise.all(
+      updates.map((proc) =>
+        useFetch(`/api/workflow-configuration/process/${proc.wfp_process_id}`, {
+          method: "PUT",
+          body: {
+            wfp_process_name: proc.wfp_process_name,
+            wfp_process_desc_bm: proc.wfp_process_desc_bm,
+            wfp_sequence: proc.wfp_sequence,
+            wfp_duration_kpi: proc.wfp_duration_kpi,
+            wfp_duration_kpi_withquery: proc.wfp_duration_kpi_withquery,
+            wfp_status: proc.wfp_status,
+            wfp_is_email_notification: proc.wfp_is_email_notification,
+            wfp_is_todo_notification: proc.wfp_is_todo_notification,
+            wfp_is_by_unit: proc.wfp_is_by_unit,
+            wfp_is_by_ptj: proc.wfp_is_by_ptj,
+            wfp_is_allow_query: proc.wfp_is_allow_query,
+          },
+          initialCache: false,
+        })
+      )
+    );
+
+    await fetchProcesses(selectedWorkflow.value.wfa_workflow_code);
+  } catch (error) {
+    console.error("Error reordering processes:", error);
+    $swal.fire({ title: "Error", text: "Failed to update process sequence", icon: "error" });
+    await fetchProcesses(selectedWorkflow.value.wfa_workflow_code);
+  } finally {
+    isReorderingProcesses.value = false;
+  }
 };
 
 // Toggle process collapse
@@ -342,6 +535,8 @@ const handleSaveProcess = async () => {
     $swal.fire({ title: "Validation", text: "Process name is required", icon: "warning" });
     return;
   }
+  normalizeProcessIntegerField("wfp_sequence");
+  normalizeProcessIntegerField("wfp_duration_kpi");
   try {
     const url = isProcessEditMode.value
       ? `/api/workflow-configuration/process/${editingProcessId.value}`
@@ -401,24 +596,31 @@ const handleDeleteProcess = async (proc) => {
 };
 
 // --- Process Detail CRUD ---
-const handleAddProcessDetail = () => {
+const handleAddProcessDetail = async () => {
   if (!selectedProcess.value) {
     $swal.fire({ title: "Warning", text: "Select a process first", icon: "warning" });
     return;
   }
+  if (selectedWorkflow.value?.wfa_workflow_code) {
+    await fetchProcesses(selectedWorkflow.value.wfa_workflow_code);
+  }
+  await fetchRerouteProcessOptions();
   isProcessDetailEditMode.value = false;
   editingProcessDetailId.value = null;
   processDetailForm.value = {
     wpd_status_code: "",
     wpd_status_desc: "",
     wpd_reroute_process: null,
-    wpd_proc_to_exec: "",
     wpd_order: null,
   };
   showProcessDetailModal.value = true;
 };
 
-const handleEditProcessDetail = (d) => {
+const handleEditProcessDetail = async (d) => {
+  if (selectedWorkflow.value?.wfa_workflow_code) {
+    await fetchProcesses(selectedWorkflow.value.wfa_workflow_code);
+  }
+  await fetchRerouteProcessOptions();
   isProcessDetailEditMode.value = true;
   editingProcessDetailId.value = d.wpd_process_details_id;
   const ext = (d.wpd_extended_field && typeof d.wpd_extended_field === "object" ? d.wpd_extended_field : {}) || {};
@@ -426,7 +628,6 @@ const handleEditProcessDetail = (d) => {
     wpd_status_code: d.wpd_status_code || "",
     wpd_status_desc: (d.wpd_status_desc ?? ext.wpd_status_desc) || "",
     wpd_reroute_process: d.wpd_reroute_process ?? null,
-    wpd_proc_to_exec: d.wpd_proc_to_exec || "",
     wpd_order: d.wpd_order ?? null,
   };
   showProcessDetailModal.value = true;
@@ -437,13 +638,21 @@ const handleSaveProcessDetail = async () => {
     $swal.fire({ title: "Validation", text: "Status code is required", icon: "warning" });
     return;
   }
+  let rerouteId = processDetailForm.value.wpd_reroute_process;
+  if (rerouteId === "" || rerouteId === undefined) {
+    rerouteId = null;
+  } else {
+    const n = parseInt(String(rerouteId), 10);
+    rerouteId = Number.isNaN(n) ? null : n;
+  }
   try {
     const url = isProcessDetailEditMode.value
       ? `/api/workflow-configuration/process-detail/${editingProcessDetailId.value}`
       : "/api/workflow-configuration/process-detail";
+    const payload = { ...processDetailForm.value, wpd_reroute_process: rerouteId };
     const body = isProcessDetailEditMode.value
-      ? processDetailForm.value
-      : { ...processDetailForm.value, wpd_process_id: selectedProcess.value.wfp_process_id };
+      ? payload
+      : { ...payload, wpd_process_id: selectedProcess.value.wfp_process_id };
     const { data } = await useFetch(url, {
       method: isProcessDetailEditMode.value ? "PUT" : "POST",
       body,
@@ -683,6 +892,7 @@ onMounted(() => {
                 <div class="border rounded-lg p-3 h-full bg-gray-50 dark:bg-gray-800">
                   <div class="flex items-center justify-between mb-2">
                     <div class="text-sm font-semibold">Workflow Process</div>
+                    <div v-if="isReorderingProcesses" class="text-xs text-gray-500">Updating sequence...</div>
                   </div>
 
                   <div v-if="!selectedWorkflow" class="flex items-center justify-center h-32 text-sm text-gray-500">
@@ -695,7 +905,7 @@ onMounted(() => {
                       <span class="ml-2">Loading processes...</span>
                     </div>
 
-                    <div v-else-if="sortedProcesses.length === 0" class="flex flex-col items-center justify-center h-32 text-sm text-gray-500 gap-2">
+                    <div v-else-if="orderedProcesses.length === 0" class="flex flex-col items-center justify-center h-32 text-sm text-gray-500 gap-2">
                       <span>No processes found for this workflow.</span>
                       <rs-button variant="primary" size="sm" @click="handleAddProcess">
                         <Icon name="material-symbols:add" class="mr-1" size="1rem" />
@@ -705,9 +915,14 @@ onMounted(() => {
 
                     <div v-else class="space-y-3">
                       <div
-                        v-for="proc in sortedProcesses"
+                        v-for="proc in orderedProcesses"
                         :key="proc.wfp_process_id"
                         class="border rounded-lg bg-white dark:bg-gray-900"
+                        :draggable="!isReorderingProcesses"
+                        @dragstart="handleProcessDragStart($event, proc)"
+                        @dragover="handleProcessDragOver"
+                        @drop="handleProcessDrop($event, proc)"
+                        @dragend="handleProcessDragEnd"
                       >
                         <div
                           class="flex items-start gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
@@ -720,6 +935,15 @@ onMounted(() => {
                               <div class="font-semibold text-sm">{{ proc.wfp_process_name }}</div>
                               <span class="text-[11px] px-2 py-0.5 rounded bg-blue-100 text-blue-700">
                                 Seq: {{ proc.wfp_sequence }}
+                              </span>
+                              <span class="text-[11px] px-2 py-0.5 rounded bg-purple-100 text-purple-700">
+                                Duration KPI: {{ proc.wfp_duration_kpi ?? "-" }}
+                              </span>
+                              <span
+                                class="text-[11px] px-2 py-0.5 rounded"
+                                :class="proc.wfp_is_by_ptj ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-200 text-gray-600'"
+                              >
+                                By Div/Dept: {{ proc.wfp_is_by_ptj ? "Yes" : "No" }}
                               </span>
                               <span
                                 class="text-[11px] px-2 py-0.5 rounded"
@@ -863,19 +1087,14 @@ onMounted(() => {
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Prevent Self Process</label>
-              <FormKit
-                v-model="workflowForm.wfa_prevent_self_process"
-                type="number"
-                outer-class="mb-0"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Involve Posting</label>
-              <FormKit
-                v-model="workflowForm.wfa_involve_posting"
-                type="number"
-                outer-class="mb-0"
-              />
+              <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <input
+                  v-model="isPreventSelfProcess"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>Enabled</span>
+              </label>
             </div>
           </div>
         </FormKit>
@@ -916,43 +1135,75 @@ onMounted(() => {
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Sequence</label>
-              <FormKit
-                v-model="processForm.wfp_sequence"
-                type="number"
-                outer-class="mb-0"
-              />
+              <div @keydown="preventNonIntegerNumberKeys" @paste="preventNonIntegerPaste">
+                <FormKit
+                  v-model="processForm.wfp_sequence"
+                  type="number"
+                  step="1"
+                  min="0"
+                  inputmode="numeric"
+                  outer-class="mb-0"
+                  @blur="normalizeProcessIntegerField('wfp_sequence')"
+                />
+              </div>
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Duration KPI</label>
-              <FormKit
-                v-model="processForm.wfp_duration_kpi"
-                type="number"
-                outer-class="mb-0"
-              />
+              <div @keydown="preventNonIntegerNumberKeys" @paste="preventNonIntegerPaste">
+                <FormKit
+                  v-model="processForm.wfp_duration_kpi"
+                  type="number"
+                  step="1"
+                  min="0"
+                  inputmode="numeric"
+                  outer-class="mb-0"
+                  @blur="normalizeProcessIntegerField('wfp_duration_kpi')"
+                />
+              </div>
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Status</label>
-              <FormKit
-                v-model="processForm.wfp_status"
-                type="text"
-                outer-class="mb-0"
-              />
+              <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer mt-2">
+                <input
+                  v-model="isProcessActive"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>Active</span>
+              </label>
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Email Notification</label>
-              <FormKit
-                v-model="processForm.wfp_is_email_notification"
-                type="number"
-                outer-class="mb-0"
-              />
+              <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer mt-2">
+                <input
+                  v-model="isEmailNotificationEnabled"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>Enabled</span>
+              </label>
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Todo Notification</label>
-              <FormKit
-                v-model="processForm.wfp_is_todo_notification"
-                type="number"
-                outer-class="mb-0"
-              />
+              <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer mt-2">
+                <input
+                  v-model="isTodoNotificationEnabled"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>Enabled</span>
+              </label>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium mb-1">Orchestration</label>
+              <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer mt-2">
+                <input
+                  v-model="isByDivDept"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>By Div/Dept</span>
+              </label>
             </div>
           </div>
         </FormKit>
@@ -995,15 +1246,9 @@ onMounted(() => {
               <label class="block text-sm font-medium mb-1">Reroute Process</label>
               <FormKit
                 v-model="processDetailForm.wpd_reroute_process"
-                type="number"
-                outer-class="mb-0"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Proc To Exec</label>
-              <FormKit
-                v-model="processDetailForm.wpd_proc_to_exec"
-                type="text"
+                type="select"
+                :options="rerouteProcessSelectOptions"
+                placeholder="Select process..."
                 outer-class="mb-0"
               />
             </div>

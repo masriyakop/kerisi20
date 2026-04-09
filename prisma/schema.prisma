@@ -3122,3 +3122,22 @@ model api_gen_log {
 
   @@index([api_key], map: "fk_api_gen_log_01")
 }
+
+model error_log {
+  log_error_id       Int       @id @default(autoincrement())
+  log_module         String?   @db.VarChar(100)
+  stf_staff_id       String?   @db.VarChar(20)
+  log_message        String?   @db.VarChar(1000)
+  log_extended_field Json?
+  createddate        DateTime? @default(now()) @db.DateTime(0)
+  createdby          String?   @db.VarChar(250)
+  updateddate        DateTime? @db.DateTime(0)
+  updatedby          String?   @db.VarChar(250)
+}
+
+model test {
+  test_pk     Int     @id @default(autoincrement())
+  test_desc   String? @db.VarChar(10000)
+  test_json   Json?
+  test_update String? @db.VarChar(20)
+}
